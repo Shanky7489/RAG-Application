@@ -3,10 +3,10 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Leave this empty unless using a public tunnel (like ngrok/cloudflare) for the app
-const BACKEND_TUNNEL_URL = 'https://slow-site-mins-answered.trycloudflare.com';
+const BACKEND_TUNNEL_URL = 'https://beam-needed-set-psychological.trycloudflare.com';
 
 // On Web (Desktop), use localhost. On Mobile, use the PC's local Wi-Fi IP.
-export const API_BASE_URL = BACKEND_TUNNEL_URL || (Platform.OS === 'web' ? 'http://192.168.29.205:8001' : 'http://192.168.29.205:8001');
+export let API_BASE_URL = BACKEND_TUNNEL_URL || (Platform.OS === 'web' ? 'http://192.168.29.205:8001' : 'http://192.168.29.205:8001');
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -14,6 +14,52 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+export const TUNNEL_STORAGE_KEY = 'lexai_tunnel_url';
+
+export const setTunnelUrl = async (url: string) => {
+  await AsyncStorage.setItem(TUNNEL_STORAGE_KEY, url);
+  API_BASE_URL = url;
+  api.defaults.baseURL = url;
+  STREAM_CHAT_URL = `${url}/chat/stream`;
+};
+
+export const loadTunnelUrl = async (): Promise<string | null> => {
+  const url = await AsyncStorage.getItem(TUNNEL_STORAGE_KEY);
+  if (url) {
+    API_BASE_URL = url;
+    api.defaults.baseURL = url;
+    STREAM_CHAT_URL = `${url}/chat/stream`;
+    return url;
+  }
+  return null;
+};
+
+export const checkServerConnection = async (url: string): Promise<boolean> => {
+  try {
+    const cleanUrl = url.trim().replace(/\/$/, '');
+    // Ping root instead of /stats to avoid 500s on specific routes
+    await axios.get(`${cleanUrl}/`, { timeout: 10000 });
+    return true;
+  } catch (error: any) {
+    if (error.response) {
+      // Cloudflare tunnel down errors
+      const status = error.response.status;
+      if ([502, 522, 524, 530].includes(status)) {
+        return false;
+      }
+      // Any other error (404, 500, 422, 401) means the backend is reachable!
+      return true;
+    }
+    
+    // On Web, CORS might cause a Network Error even if the server is up
+    if (Platform.OS === 'web') {
+      return url.trim().startsWith('http');
+    }
+    
+    return false;
+  }
+};
 
 // --- Auth Persistence ---
 const AUTH_STORAGE_KEY = 'lexai_auth';
@@ -111,7 +157,7 @@ export const uploadDocument = async (fileUri: string, fileName: string, mimeType
 
 // For chat streaming, we'll use react-native-sse directly in the component, 
 // but we can export the URL here.
-export const STREAM_CHAT_URL = `${API_BASE_URL}/chat/stream`;
+export let STREAM_CHAT_URL = `${API_BASE_URL}/chat/stream`;
 
 export const deleteDocument = async (fileName: string, ragVersion: string = "version1"): Promise<any> => {
   const response = await api.delete(`/documents/${encodeURIComponent(fileName)}?rag_version=${encodeURIComponent(ragVersion)}`);

@@ -399,12 +399,12 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   tabText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
   },
   closeBtn: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -412,11 +412,11 @@ const styles = StyleSheet.create({
   scrollContent: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 12,
   },
   card: {
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 14,
+    padding: 18,
     marginBottom: 16,
   },
   cardHeader: {
@@ -425,31 +425,31 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   cardTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    marginLeft: 8,
+    marginLeft: 10,
     flex: 1,
   },
   statRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   statLabel: {
-    fontSize: 13,
+    fontSize: 15,
   },
   statValue: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '600',
   },
   badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 6,
   },
   badgeText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
   },
   countBadge: {
@@ -461,34 +461,34 @@ const styles = StyleSheet.create({
   },
   countBadgeText: {
     color: '#3B82F6',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
   },
   fileList: {
-    marginTop: 4,
+    marginTop: 6,
   },
   fileItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderBottomWidth: 1,
   },
   emptyText: {
-    fontSize: 13,
+    fontSize: 15,
     fontStyle: 'italic',
     textAlign: 'center',
-    marginTop: 10,
+    marginTop: 12,
   },
   fileName: {
-    fontSize: 13,
+    fontSize: 15,
     flex: 1,
   },
   clearAllBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
   clearAllText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#EF4444',
     fontWeight: '600',
   },
@@ -503,32 +503,32 @@ const styles = StyleSheet.create({
   emptyTraceText: {
     marginTop: 16,
     textAlign: 'center',
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
   },
   stageContainer: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   stageHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   stageIconBg: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
+    marginRight: 10,
   },
   stageTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '700',
     flex: 1,
   },
   stageCount: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '500',
   },
   stageLineContainer: {
@@ -555,16 +555,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   chunkIdText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
   },
   chunkWeightText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '500',
     marginTop: 2,
   },
   noChunksText: {
-    fontSize: 12,
+    fontSize: 14,
     fontStyle: 'italic',
     paddingVertical: 8,
   },

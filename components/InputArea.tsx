@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import {
   View,
   TextInput,
@@ -14,7 +14,9 @@ import {
   NativeModules,
   Alert,
   Pressable,
+  Keyboard,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Paperclip,
   Send,
@@ -26,15 +28,16 @@ import {
   Plus,
   Camera,
   ChevronDown,
+  Square,
 } from "lucide-react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import { Audio } from "expo-av";
 import { API_BASE_URL } from "../services/api";
 import { MODELS, MODEL_ICONS } from "../services/constants";
 
 interface InputAreaProps {
   onSendMessage: (message: string, files: AttachedFile[], buildGraph: boolean, updateStatus: (id: string, status: any) => void) => Promise<boolean>;
+  onStopMessage?: () => void;
   isSending: boolean;
   theme: any;
   onPreviewFile?: (file: AttachedFile) => void;
@@ -52,21 +55,28 @@ interface AttachedFile {
   status: "ready" | "uploading" | "success" | "already_exists" | "failed";
 }
 
+export interface InputAreaRef {
+  pickDocument: () => void;
+  takeImage: () => void;
+}
+
 const LANGUAGES = [
   { code: "en-US", name: "English", label: "EN" },
-  { code: "hi-IN", name: "हिंदी", label: "HI" },
+  { code: "te-IN", name: "తెలుగు", label: "TE" },
 ];
 
-export default function InputArea({
+const InputArea = forwardRef<InputAreaRef, InputAreaProps>(({
   onSendMessage,
+  onStopMessage,
   isSending,
   theme,
   onPreviewFile,
   selectedModel,
   setSelectedModel,
   appMode,
-}: InputAreaProps) {
+}, ref) => {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const [text, setText] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const [inputHeight, setInputHeight] = useState(40); // Initial height for 1 line
@@ -82,16 +92,34 @@ export default function InputArea({
   const [nativeVoiceSupport, setNativeVoiceSupport] = useState(true);
   const [waveHeights, setWaveHeights] = useState([12, 18, 10, 24, 15, 20, 12]);
   const [speechError, setSpeechError] = useState<string | null>(null);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [interimText, setInterimText] = useState("");
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
   const webRecognitionRef = useRef<any>(null);
+  const isMsmeMode = appMode === "CMS" || selectedModel === "msme";
 
-  const isVoiceAvailable = () => true;
+  useImperativeHandle(ref, () => ({
+    pickDocument: handlePickDocument,
+    takeImage: handleTakeImage
+  }));
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener("keyboardDidShow", () => {
+      setKeyboardVisible(true);
+    });
+    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
+      setKeyboardVisible(false);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   // Diagnostic logs
   useEffect(() => {
-    console.log("[LexAI Voice Debug] NativeModules.Voice:", NativeModules.Voice);
-    console.log("[LexAI Voice Debug] isVoiceAvailable():", isVoiceAvailable());
+    console.log("[LexAI Voice Debug] ExpoSpeechRecognition API loaded");
   }, []);
 
   // Web speech recognition effect
@@ -116,35 +144,30 @@ export default function InputArea({
         };
 
         rec.onresult = (event: any) => {
-          let interimTranscript = "";
+          let currentInterim = "";
           let finalTranscript = "";
           for (let i = event.resultIndex; i < event.results.length; ++i) {
             if (event.results[i].isFinal) {
               finalTranscript += event.results[i][0].transcript;
             } else {
-              interimTranscript += event.results[i][0].transcript;
+              currentInterim += event.results[i][0].transcript;
             }
           }
-          const currentText = finalTranscript || interimTranscript;
-          setListeningText(currentText);
-          setVoiceVolume(Math.random() * 6 + 1);
+          if (finalTranscript) {
+            setText((prev) => prev + (prev && !prev.endsWith(" ") ? " " : "") + finalTranscript);
+          }
+          setInterimText(currentInterim);
         };
 
         rec.onerror = (event: any) => {
-          console.error("Web Speech Recognition error", event.error);
-          if (event.error === "not-allowed") {
-            setSpeechError(
-              "Microphone access blocked. Please grant microphone permissions.\n\nNote: Browsers block microphone access on insecure connections (HTTP IP addresses). To test on your mobile browser, run with secure tunnel: 'npx expo start --tunnel'."
-            );
-          } else if (event.error === "network") {
-            setSpeechError(
-              "Network error. Browser speech recognition requires an active internet connection. If you are on a local network, ensure you are using 'localhost' or a secure HTTPS connection."
-            );
-          } else if (event.error === "no-speech") {
-            // Keep listening, do not fail
-          } else {
-            setSpeechError(`Speech recognition error: ${event.error}. Please try again.`);
-          }
+          console.error("Web Speech error", event.error);
+          setIsListening(false);
+          setInterimText("");
+        };
+
+        rec.onend = () => {
+          setIsListening(false);
+          setInterimText("");
         };
 
         webRecognitionRef.current = rec;
@@ -152,27 +175,7 @@ export default function InputArea({
     }
   }, [micLanguage]);
 
-  // Stagger wave bar heights during active listening
-  useEffect(() => {
-    let interval: any;
-    if (isListening && nativeVoiceSupport) {
-      interval = setInterval(() => {
-        const base = Math.max(8, Math.min(30, voiceVolume * 3));
-        setWaveHeights([
-          Math.max(6, base * (0.4 + Math.random() * 0.4)),
-          Math.max(8, base * (0.6 + Math.random() * 0.4)),
-          Math.max(6, base * (0.3 + Math.random() * 0.5)),
-          Math.max(10, base * (0.8 + Math.random() * 0.4)),
-          Math.max(8, base * (0.5 + Math.random() * 0.5)),
-          Math.max(8, base * (0.7 + Math.random() * 0.4)),
-          Math.max(6, base * (0.4 + Math.random() * 0.4)),
-        ]);
-      }, 100);
-    } else {
-      setWaveHeights([12, 18, 10, 24, 15, 20, 12]);
-    }
-    return () => clearInterval(interval);
-  }, [isListening, voiceVolume, nativeVoiceSupport]);
+  // Mobile Speech Recognition events removed for Expo Go compatibility
 
   const handleLanguageToggle = (langCode: string) => {
     setMicLanguage(langCode);
@@ -189,106 +192,36 @@ export default function InputArea({
     }
   };
 
-  const startVoiceTyping = async () => {
-    setListeningText("");
-    setVoiceVolume(0);
-    setSpeechError(null);
-
-    if (Platform.OS === "web") {
-      const SpeechRecognition =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognition && webRecognitionRef.current) {
-        setNativeVoiceSupport(true);
-        try {
-          webRecognitionRef.current.start();
-          setIsListening(true);
-        } catch (e) {
-          console.error("Failed to start web speech recognition", e);
+  const toggleVoiceTyping = async () => {
+    if (isListening) {
+      // STOP
+      if (Platform.OS === "web") {
+        webRecognitionRef.current?.stop();
+      }
+      setIsListening(false);
+      if (interimText) {
+        setText((prev) => prev + (prev && !prev.endsWith(" ") ? " " : "") + interimText);
+        setInterimText("");
+      }
+    } else {
+      // START
+      setInterimText("");
+      if (Platform.OS === "web") {
+        if (webRecognitionRef.current) {
+          try {
+            webRecognitionRef.current.start();
+          } catch (e) {
+            console.log(e);
+          }
+        } else {
+          alert("Speech Recognition not supported on this browser.");
         }
       } else {
-        alert("Speech Recognition not supported on this browser.");
-      }
-    } else {
-      setNativeVoiceSupport(true);
-      try {
-        await Audio.requestPermissionsAsync();
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-        });
-        const { recording: newRec } = await Audio.Recording.createAsync(
-          Audio.RecordingOptionsPresets.HIGH_QUALITY,
-          (status) => {
-            if (status.isRecording && status.metering !== undefined) {
-              const db = status.metering;
-              const normalized = Math.max(0, db + 60);
-              setVoiceVolume(normalized / 6);
-            }
-          },
-          100
+        Alert.alert(
+          "Feature Unavailable",
+          "Voice typing is not available in the Expo Go app. To use this feature, the app must be built with custom native code."
         );
-        setRecording(newRec);
-        setIsListening(true);
-        setListeningText("Recording audio...");
-      } catch (e) {
-        console.error("Failed to start mobile voice recording", e);
-        setSpeechError("Microphone permission denied.");
-        setIsListening(false);
       }
-    }
-  };
-
-  const stopVoiceTyping = async (saveResult: boolean) => {
-    if (Platform.OS === "web") {
-      if (webRecognitionRef.current) {
-        try {
-          webRecognitionRef.current.stop();
-        } catch (e) { }
-      }
-      setIsListening(false);
-      if (saveResult && listeningText.trim()) {
-        setText((prev) => {
-          const space = prev && !prev.endsWith(" ") ? " " : "";
-          return prev + space + listeningText.trim();
-        });
-      }
-      setListeningText("");
-      setVoiceVolume(0);
-    } else {
-      if (recording) {
-        try {
-          await recording.stopAndUnloadAsync();
-          const uri = recording.getURI();
-          setRecording(null);
-
-          if (saveResult && uri) {
-            setListeningText("Transcribing...");
-            try {
-              const formData = new FormData();
-              formData.append('file', {
-                uri,
-                name: 'audio.m4a',
-                type: 'audio/m4a'
-              } as any);
-              const response = await fetch(`${API_BASE_URL}/transcribe`, {
-                method: 'POST',
-                body: formData
-              });
-              const data = await response.json();
-              if (data.text) {
-                setText((prev) => prev + (prev && !prev.endsWith(" ") ? " " : "") + data.text);
-              }
-            } catch (err) {
-              console.error(err);
-            }
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      setIsListening(false);
-      setListeningText("");
-      setVoiceVolume(0);
     }
   };
 
@@ -486,7 +419,7 @@ export default function InputArea({
       Alert.alert("Camera not supported", "Camera is not supported on web currently.");
       return;
     }
-    
+
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
@@ -531,7 +464,7 @@ export default function InputArea({
   const canSend = (text.trim() || files.length > 0) && !isSending;
 
   return (
-    <View style={[styles.container, { backgroundColor: containerBg }]}>
+    <View style={[styles.container, { backgroundColor: containerBg, paddingBottom: insets.bottom > 0 ? insets.bottom + 4 : 12, paddingHorizontal: width < 380 ? 12 : 20 }]}>
       {/* Horizontal Files Preview Row */}
       {files.length > 0 && (
         <ScrollView
@@ -632,7 +565,7 @@ export default function InputArea({
             {buildGraph && <Text style={styles.toggleCheckmark}>✓</Text>}
           </TouchableOpacity>
           <Text style={[styles.toggleText, { color: theme.text }]}>
-            Enable Graph Mapping (Hybrid RAG)
+            Enable Graph Mapping (Rag 1)
           </Text>
         </View>
       )}
@@ -685,8 +618,6 @@ export default function InputArea({
         </Pressable>
       </Modal>
 
-
-
       {/* Model Selection Modal */}
       <Modal
         visible={isModelMenuOpen}
@@ -705,6 +636,7 @@ export default function InputArea({
               {
                 backgroundColor: theme.isDark ? "#16181C" : "#FFFFFF",
                 borderColor: theme.isDark ? "#2F3336" : "#E2E8F0",
+                width: Math.min(width * 0.9, 300),
               },
             ]}
           >
@@ -847,293 +779,85 @@ export default function InputArea({
 
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', width: '100%' }}>
           {/* Attachment Menu Trigger */}
+          {!isMsmeMode && (
+            <TouchableOpacity
+              style={[
+                styles.plusButton,
+                { borderColor: theme.isDark ? '#3F3F3F' : '#E2E8F0' }
+              ]}
+              onPress={() => setIsAttachmentMenuOpen(!isAttachmentMenuOpen)}
+              disabled={isSending}
+            >
+              <Plus
+                size={16}
+                color={theme.isDark ? '#D1D5DB' : '#64748B'}
+              />
+            </TouchableOpacity>
+          )}
+
+          {/* Text Input */}
+          <TextInput
+            style={[styles.input, { height: inputHeight, color: inputTextColor }]}
+            placeholder="Ask your legal question..."
+            placeholderTextColor={placeholderColor}
+            multiline
+            value={text + (interimText ? (text && !text.endsWith(' ') ? ' ' : '') + interimText : '')}
+            onChangeText={(val) => {
+              // If they type manually, clear interim and just update text
+              if (interimText) setInterimText("");
+              setText(val);
+            }}
+            editable={!isSending}
+            onKeyPress={handleKeyPress}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            onContentSizeChange={handleContentSizeChange}
+          />
+
+          {/* Mic Icon */}
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={toggleVoiceTyping}
+            disabled={isSending}
+          >
+            <Mic size={20} color={isListening ? "#EF4444" : (isFocused ? iconActiveColor : iconColor)} />
+          </TouchableOpacity>
+
+          {/* Send or Stop Button */}
           <TouchableOpacity
             style={[
-              styles.plusButton,
-              { borderColor: theme.isDark ? '#3F3F3F' : '#E2E8F0' }
-          ]}
-          onPress={() => setIsAttachmentMenuOpen(!isAttachmentMenuOpen)}
-          disabled={isSending}
-        >
-          <Plus
-            size={16}
-            color={theme.isDark ? '#D1D5DB' : '#64748B'}
-          />
-        </TouchableOpacity>
-
-        {/* Text Input */}
-        <TextInput
-          style={[styles.input, { height: inputHeight, color: inputTextColor }]}
-          placeholder="Ask your legal question..."
-          placeholderTextColor={placeholderColor}
-          multiline
-          value={text}
-          onChangeText={setText}
-          editable={!isSending}
-          onKeyPress={handleKeyPress}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          onContentSizeChange={handleContentSizeChange}
-        />
-
-        {/* Mic Icon */}
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={startVoiceTyping}
-          disabled={isSending}
-        >
-          <Mic size={20} color={isFocused ? iconActiveColor : iconColor} />
-        </TouchableOpacity>
-
-        {/* Send Button */}
-        <TouchableOpacity
-          style={[
-            styles.sendButton,
-            { backgroundColor: canSend ? sendBtnActive : sendBtnInactive },
-          ]}
-          onPress={handleSend}
-          disabled={!canSend}
-        >
-          {isSending ? (
-            <ActivityIndicator
-              size="small"
-              color={theme.isDark ? "#000000" : "#FFFFFF"}
-            />
-          ) : (
-            <Send
-              size={17}
-              color={
-                canSend
-                  ? theme.isDark
-                    ? "#000000"
-                    : "#FFFFFF"
-                  : theme.isDark
-                    ? "#5B6068"
-                    : "#CBD5E1"
-              }
-            />
-          )}
-        </TouchableOpacity>
-      </View>
-      </View>
-      {/* <Text style={[styles.hintText, { color: placeholderColor, opacity: 0.8 }]}>
-        Powered by C-Net
-      </Text> */}
-
-      {/* Listening Modal Overlay */}
-      <Modal
-        visible={isListening}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => stopVoiceTyping(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View
-            style={[
-              styles.listenCard,
-              {
-                backgroundColor: theme.isDark ? "#101114" : "#FFFFFF",
-                borderColor: theme.isDark ? "#334155" : "#E2E8F0",
-              },
+              styles.sendButton,
+              { backgroundColor: isSending ? (theme.isDark ? "#2D3035" : "#E2E8F0") : (canSend ? sendBtnActive : sendBtnInactive) },
             ]}
+            onPress={isSending ? onStopMessage : handleSend}
+            disabled={!canSend && !isSending}
           >
-            {/* Header with Close and Language Selector */}
-            <View style={styles.listenHeader}>
-              <TouchableOpacity
-                style={[
-                  styles.closeModalBtn,
-                  { backgroundColor: theme.isDark ? "#1E293B" : "#F1F5F9" },
-                ]}
-                onPress={() => stopVoiceTyping(false)}
-              >
-                <X size={18} color={theme.isDark ? "#E7E9EA" : "#1A202C"} />
-              </TouchableOpacity>
-
-              {/* Language Selector Pills */}
-              <View
-                style={[
-                  styles.langSelector,
-                  { backgroundColor: theme.isDark ? "#1E1F22" : "#E2E8F0" },
-                ]}
-              >
-                {LANGUAGES.map((lang) => {
-                  const active = micLanguage === lang.code;
-                  return (
-                    <TouchableOpacity
-                      key={lang.code}
-                      style={[
-                        styles.langPill,
-                        active && {
-                          backgroundColor: theme.isDark ? "#2D3748" : "#FFFFFF",
-                        },
-                      ]}
-                      onPress={() => handleLanguageToggle(lang.code)}
-                    >
-                      <Text
-                        style={[
-                          styles.langPillText,
-                          { color: theme.isDark ? "#E7E9EA" : "#1A202C" },
-                          active && { fontWeight: "700" },
-                        ]}
-                      >
-                        {lang.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* Listening Status & Pulse */}
-            <View style={styles.listenBody}>
-              {nativeVoiceSupport ? (
-                <>
-                  <Text
-                    style={[styles.listenStatusText, { color: theme.isDark ? "#71767B" : "#94A3B8" }]}
-                  >
-                    {micLanguage === "hi-IN"
-                      ? "सुन रहे हैं... बोलिए"
-                      : "Listening... speak now"}
-                  </Text>
-
-                  {/* Pulsing Mic Waveform */}
-                  <View style={styles.waveformContainer}>
-                    {waveHeights.map((h, i) => (
-                      <View
-                        key={i}
-                        style={[
-                          styles.waveBar,
-                          {
-                            height: h,
-                            backgroundColor: theme.isDark
-                              ? "#C5A880"
-                              : "#1E293B",
-                          },
-                        ]}
-                      />
-                    ))}
-                  </View>
-
-                  {/* Pulsing Mic Circle */}
-                  <View
-                    style={[
-                      styles.pulseCircle,
-                      {
-                        borderColor: theme.isDark
-                          ? "rgba(197, 168, 128, 0.25)"
-                          : "rgba(30, 41, 59, 0.1)",
-                      },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.micActiveBtn,
-                        {
-                          backgroundColor: theme.isDark ? "#C5A880" : "#1E293B",
-                        },
-                      ]}
-                    >
-                      <Mic size={32} color={theme.isDark ? "#000000" : "#FFFFFF"} />
-                    </View>
-                  </View>
-
-                  {/* Transcription Live Preview or Error Box */}
-                  {speechError ? (
-                    <View
-                      style={[
-                        styles.errorBox,
-                        {
-                          backgroundColor: theme.isDark ? "#2D1D1F" : "#FEF2F2",
-                          borderColor: "#EF4444",
-                        },
-                      ]}
-                    >
-                      <ScrollView contentContainerStyle={styles.transcriptionScroll}>
-                        <Text style={[styles.errorText, { color: "#EF4444" }]}>
-                          {speechError}
-                        </Text>
-                      </ScrollView>
-                    </View>
-                  ) : (
-                    <View
-                      style={[
-                        styles.transcriptionBox,
-                        {
-                          backgroundColor: theme.isDark ? "#16181C" : "#F8FAFC",
-                          borderColor: theme.isDark ? "#334155" : "#E2E8F0",
-                        },
-                      ]}
-                    >
-                      <ScrollView contentContainerStyle={styles.transcriptionScroll}>
-                        <Text
-                          style={[
-                            styles.transcriptionText,
-                            {
-                              color: listeningText ? (theme.isDark ? "#E7E9EA" : "#1A202C") : (theme.isDark ? "#71767B" : "#94A3B8"),
-                            },
-                          ]}
-                        >
-                          {listeningText ||
-                            (micLanguage === "hi-IN"
-                              ? "आपका भाषण यहाँ दिखाई देगा..."
-                              : "Your speech will appear here...")}
-                        </Text>
-                      </ScrollView>
-                    </View>
-                  )}
-                </>
-              ) : null}
-            </View>
-
-            {/* Footer Actions */}
-            <View style={styles.listenFooter}>
-              <TouchableOpacity
-                style={[
-                  styles.footerBtn,
-                  styles.cancelBtn,
-                  { borderColor: theme.isDark ? "#334155" : "#E2E8F0" },
-                ]}
-                onPress={() => stopVoiceTyping(false)}
-              >
-                <X size={18} color="#EF4444" style={{ marginRight: 6 }} />
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-
-              {nativeVoiceSupport && (
-                <TouchableOpacity
-                  style={[
-                    styles.footerBtn,
-                    styles.doneBtn,
-                    {
-                      backgroundColor: theme.buttonBg,
-                      opacity: listeningText ? 1 : 0.6,
-                    },
-                  ]}
-                  onPress={() => stopVoiceTyping(true)}
-                  disabled={!listeningText}
-                >
-                  <Check
-                    size={18}
-                    color={theme.isDark ? "#000000" : "#FFFFFF"}
-                    style={{ marginRight: 6 }}
-                  />
-                  <Text
-                    style={[
-                      styles.doneBtnText,
-                      { color: theme.isDark ? "#000000" : "#FFFFFF" },
-                    ]}
-                  >
-                    Done
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
+            {isSending ? (
+              <Square
+                size={14}
+                fill={theme.isDark ? "#FFFFFF" : "#0F172A"}
+                color={theme.isDark ? "#FFFFFF" : "#0F172A"}
+              />
+            ) : (
+              <Send
+                size={17}
+                color={
+                  canSend
+                    ? theme.isDark
+                      ? "#000000"
+                      : "#FFFFFF"
+                    : theme.isDark
+                      ? "#5B6068"
+                      : "#CBD5E1"
+                }
+              />
+            )}
+          </TouchableOpacity>
         </View>
-      </Modal>
+      </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -1578,3 +1302,5 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 });
+
+export default InputArea;

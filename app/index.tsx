@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
-import { loadAuth } from "../services/api";
+import { loadAuth, loadTunnelUrl } from "../services/api";
 import Animated, {
   FadeIn,
   useSharedValue,
@@ -32,12 +32,12 @@ export default function SplashScreen() {
     const checkAuth = async () => {
       // Small delay for splash animation
       await new Promise(resolve => setTimeout(resolve, 2000));
-      const auth = await loadAuth();
-      if (auth) {
-        router.replace("/chat");
-      } else {
-        router.replace("/auth");
-      }
+      
+      // Load tunnel URL if previously saved
+      await loadTunnelUrl();
+
+      // Always go to auth page as requested (app start -> popup -> login -> chat)
+      router.replace("/auth");
     };
     checkAuth();
   }, []);

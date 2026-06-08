@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Dimensions, Pressable, Platform, Modal } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Dimensions, Pressable, Platform, Modal, PanResponder, Image } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
-import { Plus, MessageSquare, Trash2, Edit3, Check, X, LogOut, Sparkles, LayoutDashboard, BookOpen, History, Search, PanelLeft, Sun, Moon, ChevronDown, Hexagon } from 'lucide-react-native';
+import { Plus, MessageSquare, Trash2, Edit3, Check, X, LogOut, Sparkles, LayoutDashboard, BookOpen, History, Search, PanelLeft, Sun, Moon, ChevronDown, Hexagon, ChevronLeft } from 'lucide-react-native';
 import { Session, clearAuth } from '../services/api';
 import { MODELS, MODEL_ICONS } from '../services/constants';
 import { useRouter } from 'expo-router';
 
 const { width } = Dimensions.get('window');
-const SIDEBAR_WIDTH = width * 0.80;
+const SIDEBAR_WIDTH = width * 0.72;
 const PANEL_WIDTH = 260;
 
 interface SidebarProps {
@@ -57,6 +57,21 @@ export default function Sidebar({
   const modelIcons = MODEL_ICONS;
 
   const currentModelInfo = models.find((m) => m.id === selectedModel) || models[0];
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Activate if horizontal movement is greater than vertical movement and > 10px
+        return !isDesktop && Math.abs(gestureState.dx) > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        // If swiped from right to left (negative dx) by at least 40px, close sidebar
+        if (gestureState.dx < -40) {
+          onClose();
+        }
+      },
+    })
+  ).current;
 
 
 
@@ -152,6 +167,7 @@ export default function Sidebar({
 
 
       <Animated.View
+        {...panResponder.panHandlers}
         style={[
           styles.container,
           isDesktop ? styles.desktopContainer : null,
@@ -167,16 +183,30 @@ export default function Sidebar({
           {/* Panel Header */}
           <View style={[
             styles.panelHeader,
-            isCollapsed && { justifyContent: 'center', paddingHorizontal: 0 },
-            !isDesktop && { justifyContent: 'space-between' }
+            isCollapsed && { justifyContent: 'center', paddingHorizontal: 0, paddingBottom: 0, borderBottomWidth: 0 },
+            !isDesktop && { justifyContent: 'space-between' },
+            !isCollapsed && {
+              borderBottomWidth: 1,
+              borderBottomColor: theme.isDark ? '#2D323C' : '#E5E5E5',
+              paddingBottom: 16,
+              marginBottom: 16
+            }
           ]}>
-            {/* LexAI Logo for Mobile View */}
-            {!isDesktop && (
-              <View style={styles.logoWrapper}>
-                <View style={[styles.brandMarkTop, { backgroundColor: theme.isDark ? '#FFFFFF' : '#000000' }]}>
-                  <Hexagon size={18} color={theme.isDark ? '#000000' : '#FFFFFF'} fill={theme.isDark ? '#000000' : '#FFFFFF'} />
+            {/* Logo Section */}
+            {!isCollapsed && (
+              <View style={[styles.logoWrapper, { flex: 1 }]}>
+                {!isDesktop && (
+                  <TouchableOpacity
+                    style={{ padding: 4, marginRight: 8 }}
+                    onPress={onClose}
+                  >
+                    <ChevronLeft size={24} color={theme.text} />
+                  </TouchableOpacity>
+                )}
+                <View style={{ flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center' }}>
+                  <Text style={[styles.brandNameTop, { fontSize: width < 380 ? 22 : 26, color: theme.text, marginBottom: 2, lineHeight: width < 380 ? 26 : 28 }]}>LexAI</Text>
+                  <Text style={{ fontSize: width < 380 ? 11 : 12, color: theme.textMuted, fontWeight: '600' }}>Powered by C-Net</Text>
                 </View>
-                <Text style={[styles.brandNameTop, { color: theme.text }]}>LexAI</Text>
               </View>
             )}
 
@@ -184,7 +214,8 @@ export default function Sidebar({
               <TouchableOpacity
                 style={[
                   styles.logoIcon,
-                  { width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.isDark ? '#16181C' : '#F1F5F9' }
+                  { width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.isDark ? '#16181C' : '#F1F5F9' },
+                  !isCollapsed && { marginRight: 8 }
                 ]}
                 onPress={() => {
                   if (isOpen) {
@@ -236,12 +267,12 @@ export default function Sidebar({
 
           {/* Search Bar */}
           {!isCollapsed ? (
-            <View style={[styles.searchContainer, { backgroundColor: theme.isDark ? '#16181C' : '#F1F5F9' }]}>
-              <Search size={14} color={theme.isDark ? '#71767B' : '#94A3B8'} style={{ marginRight: 6 }} />
+            <View style={[styles.searchContainer, { backgroundColor: theme.isDark ? '#2C2C2E' : '#F1F5F9' }]}>
+              <Search size={14} color={theme.isDark ? '#94A3B8' : '#94A3B8'} style={{ marginRight: 6 }} />
               <TextInput
                 style={[styles.searchInput, { color: theme.text }]}
                 placeholder="Search chats..."
-                placeholderTextColor={theme.isDark ? '#71767B' : '#A0AEC0'}
+                placeholderTextColor={theme.isDark ? '#94A3B8' : '#A0AEC0'}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
               />
@@ -381,8 +412,8 @@ export default function Sidebar({
                               <Text
                                 style={[
                                   styles.sessionText,
-                                  { color: theme.isDark ? '#94A3B8' : '#64748B' },
-                                  isSelected && { color: theme.isDark ? '#E0E7FF' : '#1E293B', fontWeight: '600' }
+                                  { color: theme.isDark ? '#E2E8F0' : '#64748B' },
+                                  isSelected && { color: theme.isDark ? '#FFFFFF' : '#1E293B', fontWeight: '600' }
                                 ]}
                                 numberOfLines={1}
                               >
@@ -392,10 +423,10 @@ export default function Sidebar({
 
                             <View style={styles.actionButtons}>
                               <TouchableOpacity onPress={() => handleStartEdit(session)} style={styles.actionBtn}>
-                                <Edit3 size={12} color={theme.isDark ? '#4B5563' : '#CBD5E1'} style={{ opacity: isSelected ? 1 : 0.5 }} />
+                                <Edit3 size={18} color={theme.isDark ? '#E2E8F0' : '#64748B'} style={{ opacity: isSelected ? 1 : 0.8 }} />
                               </TouchableOpacity>
                               <TouchableOpacity onPress={() => onDeleteSession(session.id)} style={styles.actionBtn}>
-                                <Trash2 size={12} color="#F87171" style={{ opacity: isSelected ? 0.9 : 0.35 }} />
+                                <Trash2 size={18} color="#EF4444" style={{ opacity: isSelected ? 1 : 0.8 }} />
                               </TouchableOpacity>
                             </View>
                           </>
@@ -520,23 +551,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    marginBottom: 22,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 24,
   },
   newChatBtnText: {
     color: '#FFFFFF',
     fontWeight: '600',
-    fontSize: 14,
-    marginLeft: 6,
+    fontSize: 16,
+    marginLeft: 8,
   },
   sectionTitle: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1.2,
-    marginBottom: 10,
+    marginBottom: 12,
+    marginTop: 8,
     paddingLeft: 4,
   },
   sessionList: {
@@ -546,43 +578,44 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    marginBottom: 3,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginBottom: 4,
   },
   sessionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 10,
   },
   sessionIcon: {
-    marginRight: 8,
+    marginRight: 10,
   },
   sessionText: {
-    fontSize: 13,
+    fontSize: 15,
     flex: 1,
+    lineHeight: 20,
   },
   actionButtons: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   actionBtn: {
-    padding: 5,
+    padding: 8,
   },
   editRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    paddingVertical: 4,
+    paddingVertical: 6,
   },
   editInput: {
     flex: 1,
-    borderRadius: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    fontSize: 13,
-    marginRight: 4,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    fontSize: 15,
+    marginRight: 6,
   },
   editActionBtn: {
     padding: 5,
@@ -598,28 +631,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   footerAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    marginRight: 12,
   },
   footerAvatarText: {
     color: '#FFF',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '700',
   },
   userInfo: {
     flex: 1,
+    justifyContent: 'center',
   },
   userName: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '600',
   },
   userRole: {
-    fontSize: 11,
-    marginTop: 1,
+    fontSize: 12,
+    marginTop: 2,
   },
   logoutBtn: {
     flexDirection: 'row',
@@ -653,12 +687,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   brandMarkTop: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    marginRight: 12,
     ...Platform.select({
       web: {
         boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)',
@@ -675,23 +709,23 @@ const styles = StyleSheet.create({
     }),
   },
   brandNameTop: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     marginBottom: 16,
   },
   searchInput: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 15,
     padding: 0,
-    height: 32,
+    height: 36,
   },
   collapsedSearchBtn: {
     width: 40,

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,10 +7,12 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { login, saveAuth } from "../services/api";
+import { login, saveAuth, loadTunnelUrl, setTunnelUrl, checkServerConnection } from "../services/api";
 import Animated, { FadeIn, FadeInUp } from "react-native-reanimated";
 import {
   ArrowRight,
@@ -20,6 +22,7 @@ import {
   Sparkles,
   Eye,
   EyeOff,
+  Server,
 } from "lucide-react-native";
 
 export default function AuthScreen() {
@@ -32,6 +35,42 @@ export default function AuthScreen() {
   );
 
   const [isLoading, setIsLoading] = useState(false);
+  
+  const [showTunnelModal, setShowTunnelModal] = useState(false);
+  const [tunnelUrlInput, setTunnelUrlInput] = useState("");
+  const [tunnelLoading, setTunnelLoading] = useState(false);
+  const [tunnelError, setTunnelError] = useState("");
+
+  useEffect(() => {
+    const checkTunnel = async () => {
+      const url = await loadTunnelUrl();
+      if (url) {
+        setTunnelUrlInput(url);
+      }
+      // Always show tunnel popup on start so user can verify/update the URL
+      setShowTunnelModal(true);
+    };
+    checkTunnel();
+  }, []);
+
+  const handleSaveTunnel = async () => {
+    if (tunnelUrlInput.trim()) {
+      setTunnelLoading(true);
+      setTunnelError("");
+      
+      const isReachable = await checkServerConnection(tunnelUrlInput.trim());
+      
+      if (!isReachable) {
+        setTunnelError("Cannot connect to server. Please check the URL.");
+        setTunnelLoading(false);
+        return;
+      }
+
+      await setTunnelUrl(tunnelUrlInput.trim());
+      setTunnelLoading(false);
+      setShowTunnelModal(false);
+    }
+  };
 
   const canLogin = email.trim().length > 0 && password.trim().length > 0 && !isLoading;
 
@@ -57,7 +96,11 @@ export default function AuthScreen() {
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <View style={styles.shell}>
+        <ScrollView 
+          contentContainerStyle={styles.shell}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           <Animated.View
             entering={FadeIn.duration(450)}
             style={styles.formPane}
@@ -193,8 +236,77 @@ export default function AuthScreen() {
               <ShieldCheck size={15} color="#71767B" />
               <Text style={styles.footerText}>Protected workspace access</Text>
             </View>
+
+            <TouchableOpacity 
+              style={styles.serverConfigBtn}
+              onPress={() => setShowTunnelModal(true)}
+            >
+              <Server size={14} color="#71767B" />
+              <Text style={styles.serverConfigText}>Server Config</Text>
+            </TouchableOpacity>
           </Animated.View>
-        </View>
+        </ScrollView>
+
+        <Modal
+          visible={showTunnelModal}
+          animationType="slide"
+          transparent={true}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Server size={24} color="#E7E9EA" />
+                <Text style={styles.modalTitle}>Server Configuration</Text>
+              </View>
+              <Text style={styles.modalSubtitle}>
+                Please enter the backend tunnel URL provided by your developer.
+              </Text>
+              
+              <View style={styles.fieldContainer}>
+                <Text style={styles.inputLabel}>Tunnel Link</Text>
+                <View style={[styles.inputGroup, tunnelError ? { borderColor: '#F87171' } : { marginBottom: 20 }]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="https://your-tunnel-url.com"
+                    placeholderTextColor="#71767B"
+                    value={tunnelUrlInput}
+                    onChangeText={(val) => {
+                      setTunnelUrlInput(val);
+                      if (tunnelError) setTunnelError("");
+                    }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+                {tunnelError ? (
+                  <Text style={styles.errorText}>{tunnelError}</Text>
+                ) : null}
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.loginButton,
+                  !tunnelUrlInput.trim() && styles.loginButtonDisabled,
+                ]}
+                onPress={handleSaveTunnel}
+                disabled={!tunnelUrlInput.trim() || tunnelLoading}
+              >
+                <Text
+                  style={[
+                    styles.loginButtonText,
+                    !tunnelUrlInput.trim() && styles.loginButtonTextDisabled,
+                  ]}
+                >
+                  {tunnelLoading ? "Saving..." : "Save Server URL"}
+                </Text>
+                <ArrowRight
+                  color={tunnelUrlInput.trim() ? "#000000" : "#5B6068"}
+                  size={19}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -210,7 +322,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#000000",
   },
   shell: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: "center",
     paddingHorizontal: 22,
     paddingVertical: 24,
@@ -394,4 +506,53 @@ const styles = StyleSheet.create({
     color: "#E7E9EA",
     fontWeight: "700",
   },
+  serverConfigBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+    gap: 6
+  },
+  serverConfigText: {
+    color: '#71767B',
+    fontSize: 13,
+    fontWeight: '500'
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#101114',
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#2F3336',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 12
+  },
+  modalTitle: {
+    color: '#E7E9EA',
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  modalSubtitle: {
+    color: '#71767B',
+    fontSize: 14,
+    marginBottom: 24,
+    lineHeight: 20
+  },
+  errorText: {
+    color: '#F87171',
+    fontSize: 12,
+    marginTop: -4,
+    marginBottom: 16,
+    marginLeft: 4,
+  }
 });

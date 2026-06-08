@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, useWindowDimensions, Modal, Image, Linking } from 'react-native';
-import { Menu, Plus, UploadCloud, Sun, Moon, X, ChevronDown, Check, Database, FileText, Sparkles } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, useWindowDimensions, Modal, Image, Linking, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Menu, Plus, UploadCloud, Sun, Moon, X, ChevronDown, Check, Database, FileText, Sparkles, Hexagon, Scale, Landmark, BrainCircuit, Bot, Camera } from 'lucide-react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSequence, Easing } from 'react-native-reanimated';
 import Sidebar from '../components/Sidebar';
 import RightSidebar from '../components/RightSidebar';
 import MessageBubble from '../components/MessageBubble';
 import { useRouter } from 'expo-router';
 import InputArea from '../components/InputArea';
 import PdfPreview from '../components/PdfPreview';
+import { SvgUri, SvgXml } from 'react-native-svg';
 import { MODELS, MODEL_ICONS } from '../services/constants';
 import {
   getSessions,
@@ -45,8 +48,8 @@ interface ThemeColors {
 
 const darkTheme: ThemeColors = {
   isDark: true,
-  background: '#212121',
-  sidebarBg: '#171717',
+  background: '#000000',
+  sidebarBg: '#1C1C1E',
   headerBg: '#212121',
   border: '#303030',
   text: '#ECECEC',
@@ -82,6 +85,7 @@ const lightTheme: ThemeColors = {
 export default function ChatScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const isDesktop = width >= 768;
 
   const [isDark, setIsDark] = useState(true);
@@ -103,9 +107,54 @@ export default function ChatScreen() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const isMsmeMode = appMode === "CMS" || selectedModel === "msme";
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const currentXhrRef = useRef<XMLHttpRequest | null>(null);
   const [dbStats, setDbStats] = useState<any>(null);
   const [queryTrace, setQueryTrace] = useState<any>(null);
   const [authData, setAuthData] = useState<AuthData | null>(null);
+  const [logoXml, setLogoXml] = useState<string | null>(null);
+  const inputAreaRef = useRef<any>(null);
+
+  const blinkValue = useSharedValue(1);
+
+  useEffect(() => {
+    blinkValue.value = withRepeat(
+      withSequence(
+        withTiming(0.2, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1, // infinite loop
+      true // reverse
+    );
+  }, []);
+
+  const animatedIconStyle = useAnimatedStyle(() => {
+    return {
+      opacity: blinkValue.value,
+    };
+  });
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      fetch('https://www.cnet-india.com/Master_Logo_File.svg')
+        .then(r => r.text())
+        .then(xml => setLogoXml(xml))
+        .catch(e => console.log('Failed to fetch SVG', e));
+    }
+  }, []);
+
+  const processedLogoXml = React.useMemo(() => {
+    if (!logoXml) return null;
+    if (theme.isDark) {
+      // Replace common dark fills with white
+      return logoXml
+        .replace(/fill="#[0-9A-Fa-f]{3,6}"/g, 'fill="#FFFFFF"')
+        .replace(/fill="black"/gi, 'fill="#FFFFFF"')
+        .replace(/fill="#000"/gi, 'fill="#FFFFFF"')
+        .replace(/fill="#000000"/gi, 'fill="#FFFFFF"');
+    }
+    return logoXml;
+  }, [logoXml, theme.isDark]);
 
   // Load authenticated user on mount
   useEffect(() => {
@@ -196,8 +245,6 @@ export default function ChatScreen() {
     }
   };
 
-  const scrollViewRef = useRef<ScrollView>(null);
-
   // Fetch all sessions when authData is ready
   useEffect(() => {
     if (authData) {
@@ -210,11 +257,8 @@ export default function ChatScreen() {
       const userId = authData?.user_id || 'default_user';
       const data = await getSessions(userId);
       setSessions(data);
-      if (data.length > 0 && !currentSessionId) {
-        // Load the most recent session by default (backend returns newest first)
-        handleSelectSession(data[0].id);
-      } else if (!currentSessionId) {
-        // Start a fresh session
+      if (!currentSessionId) {
+        // Start a fresh session by default, matching real app behavior
         handleCreateSession();
       }
     } catch (error) {
@@ -333,6 +377,7 @@ export default function ChatScreen() {
 
     // 4. Use XMLHttpRequest for robust POST SSE Streaming in React Native
     const xhr = new XMLHttpRequest();
+    currentXhrRef.current = xhr;
     const chatEndpoint = isMsmeMode ? `${API_BASE_URL}/chat/msme` : `${API_BASE_URL}/chat/stream`;
     xhr.open('POST', chatEndpoint);
     xhr.setRequestHeader('Content-Type', 'application/json');
@@ -412,21 +457,50 @@ export default function ChatScreen() {
     return true;
   };
 
+  const handleStopMessage = () => {
+    if (currentXhrRef.current) {
+      currentXhrRef.current.abort();
+      currentXhrRef.current = null;
+    }
+    setIsSending(false);
+  };
+
+  const handleEditMessage = (index: number, newText: string) => {
+    const newMessages = messages.slice(0, index);
+    setMessages(newMessages);
+    setTimeout(() => {
+      handleSendMessage(newText, []);
+    }, 50);
+  };
+
+  const handleDeleteMessage = (index: number) => {
+    setMessages((prev) => {
+      const next = [...prev];
+      let deleteCount = 1;
+      // Also delete the subsequent assistant response if it exists
+      if (index + 1 < next.length && next[index + 1].role === 'assistant') {
+        deleteCount = 2;
+      }
+      next.splice(index, deleteCount);
+      return next;
+    });
+  };
+
   const handleModeSwitch = (mode: "RAG" | "CMS") => {
     if (appMode === mode) {
       setIsDropdownOpen(false);
       return;
     }
-    
+
     if (appMode === "RAG") {
       setRagSessionId(currentSessionId);
     } else {
       setCmsSessionId(currentSessionId);
     }
-    
+
     setAppMode(mode);
     setIsDropdownOpen(false);
-    
+
     const targetSessionId = mode === "RAG" ? ragSessionId : cmsSessionId;
     if (targetSessionId) {
       handleSelectSession(targetSessionId);
@@ -437,100 +511,7 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Mode Selection Dropdown Modal */}
-      <Modal
-        visible={isDropdownOpen}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setIsDropdownOpen(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setIsDropdownOpen(false)}
-        >
-          <View
-            style={[
-              styles.dropdownMenu,
-              {
-                backgroundColor: theme.isDark ? "#16181C" : "#FFFFFF",
-                borderColor: theme.isDark ? "#2F3336" : "#E2E8F0",
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.dropdownTitle,
-                { color: theme.isDark ? "#71767B" : "#718096" },
-              ]}
-            >
-              Select Mode
-            </Text>
-            {["RAG", "CMS"].map((mode) => {
-              const isSelected = appMode === mode;
-              const IconComponent = mode === "RAG" ? Sparkles : FileText;
-              return (
-                <TouchableOpacity
-                  key={mode}
-                  style={[
-                    styles.dropdownItem,
-                    isSelected && {
-                      backgroundColor: theme.isDark
-                        ? "rgba(255, 255, 255, 0.05)"
-                        : "rgba(0, 0, 0, 0.03)",
-                    },
-                  ]}
-                  onPress={() => {
-                    handleModeSwitch(mode as "RAG" | "CMS");
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.modelIconWrapper}>
-                    <IconComponent
-                      size={18}
-                      color={
-                        isSelected
-                          ? theme.isDark
-                            ? "#F1F5F9"
-                            : "#0F172A"
-                          : theme.isDark
-                            ? "#71767B"
-                            : "#94A3B8"
-                      }
-                    />
-                  </View>
-                  <View style={styles.modelDetails}>
-                    <Text
-                      style={[
-                        styles.modelNameText,
-                        { color: theme.isDark ? "#E7E9EA" : "#1A202C" },
-                        isSelected && { fontWeight: "700" },
-                      ]}
-                    >
-                      {mode}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.modelDescText,
-                        { color: theme.isDark ? "#71767B" : "#718096" },
-                      ]}
-                    >
-                      {mode === "RAG" ? "Chat with your data" : "Content Management"}
-                    </Text>
-                  </View>
-                  {isSelected && (
-                    <Check
-                      size={16}
-                      color={theme.isDark ? "#10B981" : "#059669"}
-                      style={styles.checkIcon}
-                    />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </TouchableOpacity>
-      </Modal>
+
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -579,28 +560,60 @@ export default function ChatScreen() {
                       <Menu size={20} color={theme.isDark ? '#94A3B8' : '#64748B'} />
                     </TouchableOpacity>
                   )}
-                  <TouchableOpacity
-                    style={[
-                      styles.modelSelectorPillHeader,
-                      {
-                        backgroundColor: 'transparent',
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      backgroundColor: theme.isDark ? '#1A1D24' : '#E2E8F0',
+                      borderRadius: 12,
+                      padding: 4,
+                      marginLeft: isDesktop ? 0 : 4,
+                    }}
+                  >
+                    <TouchableOpacity
+                      style={{
                         flexDirection: 'row',
                         alignItems: 'center',
-                        paddingVertical: 6,
-                        borderRadius: 10,
-                      }
-                    ]}
-                    onPress={() => setIsDropdownOpen(true)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text, marginRight: 6 }}>
-                      {appMode}
-                    </Text>
-                    <ChevronDown
-                      size={16}
-                      color={theme.isDark ? '#71767B' : '#94A3B8'}
-                    />
-                  </TouchableOpacity>
+                        paddingVertical: 8,
+                        paddingHorizontal: 18,
+                        borderRadius: 8,
+                        backgroundColor: appMode === 'RAG' ? (theme.isDark ? '#2D323C' : '#FFFFFF') : 'transparent',
+                        ...Platform.select({
+                          web: appMode === 'RAG' ? { boxShadow: theme.isDark ? '0 2px 8px rgba(0,0,0,0.4)' : '0 1px 3px rgba(0,0,0,0.1)' } as any : {},
+                          ios: appMode === 'RAG' ? { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: theme.isDark ? 0.3 : 0.1, shadowRadius: 3 } : {},
+                          android: appMode === 'RAG' ? { elevation: 3 } : {},
+                        })
+                      }}
+                      onPress={() => handleModeSwitch('RAG')}
+                      activeOpacity={0.7}
+                    >
+                      <Sparkles size={16} color={appMode === 'RAG' ? (theme.isDark ? '#F1F5F9' : '#0F172A') : theme.textMuted} style={{ marginRight: 6 }} />
+                      <Text style={{ fontSize: 14, fontWeight: appMode === 'RAG' ? '700' : '600', color: appMode === 'RAG' ? theme.text : theme.textMuted }}>
+                        RAG
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        paddingVertical: 8,
+                        paddingHorizontal: 18,
+                        borderRadius: 8,
+                        backgroundColor: appMode === 'CMS' ? (theme.isDark ? '#2D323C' : '#FFFFFF') : 'transparent',
+                        ...Platform.select({
+                          web: appMode === 'CMS' ? { boxShadow: theme.isDark ? '0 2px 8px rgba(0,0,0,0.4)' : '0 1px 3px rgba(0,0,0,0.1)' } as any : {},
+                          ios: appMode === 'CMS' ? { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: theme.isDark ? 0.3 : 0.1, shadowRadius: 3 } : {},
+                          android: appMode === 'CMS' ? { elevation: 3 } : {},
+                        })
+                      }}
+                      onPress={() => handleModeSwitch('CMS')}
+                      activeOpacity={0.7}
+                    >
+                      <FileText size={16} color={appMode === 'CMS' ? (theme.isDark ? '#F1F5F9' : '#0F172A') : theme.textMuted} style={{ marginRight: 6 }} />
+                      <Text style={{ fontSize: 14, fontWeight: appMode === 'CMS' ? '700' : '600', color: appMode === 'CMS' ? theme.text : theme.textMuted }}>
+                        CMS
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
                 <TouchableOpacity
                   style={[
@@ -618,65 +631,117 @@ export default function ChatScreen() {
             <View style={{ flex: 1, flexDirection: 'column' }}>
               {/* Chat Area */}
               <View style={[styles.chatArea, { backgroundColor: theme.background }]}>
-                {appMode === 'CMS' && (
-                  <View style={{ padding: 16, alignItems: 'center', zIndex: 10 }}>
-                    <PdfPreview theme={theme} isDesktop={isDesktop} />
-                  </View>
-                )}
-                
+
                 {loadingHistory ? (
+                  <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                     <View style={styles.centerContainer}>
                       <ActivityIndicator size="large" color={theme.isDark ? '#6366F1' : '#0F172A'} />
                       <Text style={[styles.loadingText, { color: theme.textMuted }]}>Loading history...</Text>
                     </View>
-                  ) : messages.length === 0 ? (
+                  </TouchableWithoutFeedback>
+                ) : messages.length === 0 ? (
+                  <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                     <View style={styles.centerContainer}>
-                      <View style={styles.emptyIconWrap}>
+                      <Animated.View style={[styles.emptyIconWrap, animatedIconStyle]}>
                         {isMsmeMode ? (
-                          <FileText size={40} color={theme.isDark ? '#FFFFFF' : '#64748B'} />
+                          <FileText size={46} color={theme.isDark ? '#FFFFFF' : '#0F172A'} />
                         ) : (
-                          <UploadCloud size={40} color={theme.isDark ? '#FFFFFF' : '#64748B'} />
+                          <View style={{ position: 'relative', alignItems: 'center', justifyContent: 'center', width: 84, height: 84, borderRadius: 42, backgroundColor: theme.isDark ? '#2D323C' : '#E2E8F0', borderWidth: 1, borderColor: theme.isDark ? '#3F3F3F' : '#CBD5E1', shadowColor: theme.isDark ? '#FFFFFF' : '#000000', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.15, shadowRadius: 16, elevation: 8 }}>
+                            <Bot size={44} color={theme.text} />
+                          </View>
                         )}
-                      </View>
-                      <Text style={[styles.emptyText, { color: theme.text }]}>
+                      </Animated.View>
+                      <Text style={[styles.emptyText, { color: theme.text, marginBottom: isMsmeMode ? 8 : 4, fontSize: width < 380 ? 28 : 34, lineHeight: width < 380 ? 34 : 40 }]}>
                         {isMsmeMode ? "MSME Form Assistant" : "Chat with LexAI"}
                       </Text>
+                      
+                      {!isMsmeMode && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                          <Text style={{ fontSize: 11, color: theme.textMuted, marginRight: 6, fontWeight: '700', letterSpacing: 0.5 }}>POWERED BY</Text>
+                          {Platform.OS === 'web' ? (
+                            <Image 
+                              source={{ uri: 'https://www.cnet-india.com/Master_Logo_File.svg' }}
+                              style={[
+                                { width: 65, height: 16 },
+                                theme.isDark && { filter: 'brightness(0) invert(1)' } as any
+                              ]}
+                              resizeMode="contain"
+                            />
+                          ) : processedLogoXml ? (
+                            <SvgXml width="65" height="16" xml={processedLogoXml} />
+                          ) : (
+                            <SvgUri width="65" height="16" uri="https://www.cnet-india.com/Master_Logo_File.svg" />
+                          )}
+                        </View>
+                      )}
+
                       <Text style={[styles.emptySubText, { color: theme.textMuted }]}>
                         {isMsmeMode
                           ? "Describe your business details and LexAI will help you fill and format your MSME Registration form."
-                          : "Powered by LexAI \n Upload documents to query them using advanced AI"}
+                          : "Upload documents and get instant AI answers."}
                       </Text>
+
+                      {isMsmeMode && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 36, gap: 20, width: '100%', paddingHorizontal: 16 }}>
+                          <TouchableOpacity 
+                            onPress={() => inputAreaRef.current?.pickDocument()}
+                            style={{ width: 145, height: 145, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: theme.isDark ? '#2D323C' : '#E2E8F0', borderRadius: 75, shadowColor: theme.isDark ? '#000' : '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 }}
+                          >
+                            <FileText size={44} color={theme.text} style={{ marginBottom: 12 }} />
+                            <Text style={{ color: theme.text, fontSize: 15, fontWeight: '600', textAlign: 'center' }}>Upload Docs</Text>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity 
+                            onPress={() => inputAreaRef.current?.takeImage()}
+                            style={{ width: 145, height: 145, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: theme.isDark ? '#2D323C' : '#E2E8F0', borderRadius: 75, shadowColor: theme.isDark ? '#000' : '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 }}
+                          >
+                            <Camera size={44} color={theme.text} style={{ marginBottom: 12 }} />
+                            <Text style={{ color: theme.text, fontSize: 15, fontWeight: '600', textAlign: 'center' }}>Camera</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
                     </View>
-                  ) : (
-                    <ScrollView
-                      ref={scrollViewRef}
-                      style={styles.messagesContainer}
-                      showsVerticalScrollIndicator={false}
-                      contentContainerStyle={[
-                        { paddingVertical: 20, paddingHorizontal: isDesktop ? 20 : 10 },
-                        isDesktop && { maxWidth: 820, width: '100%', alignSelf: 'center' }
-                      ]}
-                      onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-                    >
-                      {messages.map((msg: any, index) => (
-                        <MessageBubble
-                          key={index}
-                          role={msg.role}
-                          text={msg.text}
-                          source={msg.source}
-                          page={msg.page}
-                          isStreaming={isSending && index === messages.length - 1 && msg.role === 'assistant'}
-                          theme={theme}
-                          onPreviewSource={handlePreviewSource}
-                        />
-                      ))}
-                    </ScrollView>
-                  )}
-                </View>
+                  </TouchableWithoutFeedback>
+                ) : (
+                  <ScrollView
+                    ref={scrollViewRef}
+                    style={styles.messagesContainer}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="on-drag"
+                    contentContainerStyle={[
+                      { paddingVertical: 20, paddingHorizontal: isDesktop ? 20 : (width < 380 ? 6 : 10) },
+                      isDesktop && { maxWidth: 820, width: '100%', alignSelf: 'center' }
+                    ]}
+                    onContentSizeChange={() => {
+                      if (isSending) {
+                        scrollViewRef.current?.scrollToEnd({ animated: true });
+                      }
+                    }}
+                  >
+                    {messages.map((msg: any, index) => (
+                      <MessageBubble
+                        key={index}
+                        role={msg.role}
+                        text={msg.text}
+                        source={msg.source}
+                        page={msg.page}
+                        isStreaming={isSending && index === messages.length - 1 && msg.role === 'assistant'}
+                        theme={theme}
+                        onPreviewSource={handlePreviewSource}
+                        onEditSubmit={(newText) => handleEditMessage(index, newText)}
+                        onDelete={() => handleDeleteMessage(index)}
+                      />
+                    ))}
+                  </ScrollView>
+                )}
+              </View>
 
               {/* Input Area */}
               <InputArea
+                ref={inputAreaRef}
                 onSendMessage={handleSendMessage}
+                onStopMessage={handleStopMessage}
                 onPreviewFile={handlePreviewFile}
                 isSending={isSending}
                 theme={theme}
@@ -755,7 +820,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     minHeight: 48,
     zIndex: 10,

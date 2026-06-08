@@ -4,13 +4,13 @@ import { Cpu, Sparkles, FileText } from 'lucide-react-native';
 export const MODELS = [
   {
     id: "version1",
-    name: "Hybrid Graph RAG",
+    name: "Rag 1",
     description: "Advanced reasoning with graph mapping for complex analysis",
     iconName: "Sparkles",
   },
   {
     id: "version2",
-    name: "Basic RAG",
+    name: "Rag 2",
     description: "Fast & responsive, ideal for everyday legal search",
     iconName: "Cpu",
   },

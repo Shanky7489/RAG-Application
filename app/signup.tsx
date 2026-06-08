@@ -19,6 +19,8 @@ import {
   ShieldCheck,
   Sparkles,
   User,
+  Eye,
+  EyeOff,
 } from "lucide-react-native";
 
 export default function SignupScreen() {
@@ -27,6 +29,8 @@ export default function SignupScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [focusedField, setFocusedField] = useState<
     "name" | "email" | "password" | "confirmPassword" | null
   >(null);
@@ -152,13 +156,23 @@ export default function SignupScreen() {
                   style={styles.input}
                   placeholder="Password (min. 6 characters)"
                   placeholderTextColor="#71767B"
-                  secureTextEntry
+                  secureTextEntry={!showPassword}
                   autoComplete="password"
                   value={password}
                   onChangeText={setPassword}
                   onFocus={() => setFocusedField("password")}
                   onBlur={() => setFocusedField(null)}
                 />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={{ padding: 4, marginLeft: 8 }}
+                >
+                  {showPassword ? (
+                    <EyeOff color="#71767B" size={19} />
+                  ) : (
+                    <Eye color="#71767B" size={19} />
+                  )}
+                </TouchableOpacity>
               </View>
 
               {/* Confirm Password Field */}
@@ -177,13 +191,23 @@ export default function SignupScreen() {
                   style={styles.input}
                   placeholder="Confirm password"
                   placeholderTextColor="#71767B"
-                  secureTextEntry
+                  secureTextEntry={!showConfirmPassword}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   onFocus={() => setFocusedField("confirmPassword")}
                   onBlur={() => setFocusedField(null)}
                   onSubmitEditing={handleSignup}
                 />
+                <TouchableOpacity
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={{ padding: 4, marginLeft: 8 }}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff color="#71767B" size={19} />
+                  ) : (
+                    <Eye color="#71767B" size={19} />
+                  )}
+                </TouchableOpacity>
               </View>
 
               {/* Password Matching Verification Text */}

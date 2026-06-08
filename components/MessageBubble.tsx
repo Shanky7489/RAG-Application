@@ -1,8 +1,8 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, TextInput, useWindowDimensions } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import Animated, { FadeInUp, useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSequence, withDelay, Easing } from 'react-native-reanimated';
-import { FileText, Copy, Check } from 'lucide-react-native';
+import { FileText, Copy, Check, Edit2, Trash2, X, Send } from 'lucide-react-native';
 
 interface MessageBubbleProps {
   role: 'user' | 'assistant';
@@ -12,9 +12,11 @@ interface MessageBubbleProps {
   isStreaming?: boolean;
   theme: any;
   onPreviewSource?: (sourceName: string) => void;
+  onEditSubmit?: (newText: string) => void;
+  onDelete?: () => void;
 }
 
-function renderMarkdown(text: string, theme: any, isUser: boolean) {
+function renderMarkdown(text: string, theme: any, isUser: boolean, width: number) {
   const textColor = isUser ? theme.bubbleUserText : theme.bubbleAiText;
 
   // Split by code blocks first
@@ -91,7 +93,7 @@ function renderMarkdown(text: string, theme: any, isUser: boolean) {
           });
 
           if (isHeading) {
-            const fontSize = headingLevel === 1 ? 20 : headingLevel === 2 ? 18 : 16;
+            const fontSize = headingLevel === 1 ? (width < 380 ? 18 : 20) : headingLevel === 2 ? (width < 380 ? 16 : 18) : (width < 380 ? 14 : 16);
             return (
               <Text
                 key={lineIdx}
@@ -194,14 +196,24 @@ const ThinkingDots = ({ theme }: { theme: any }) => {
   );
 };
 
-export default function MessageBubble({ role, text, source, page, isStreaming, theme, onPreviewSource }: MessageBubbleProps) {
-  const [copied, setCopied] = React.useState(false);
+export default function MessageBubble({ role, text, source, page, isStreaming, theme, onPreviewSource, onEditSubmit, onDelete }: MessageBubbleProps) {
+  const [copied, setCopied] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(text);
   const isUser = role === 'user';
+  const { width } = useWindowDimensions();
 
   const handleCopy = async () => {
     await Clipboard.setStringAsync(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSaveEdit = () => {
+    if (editText.trim() && editText.trim() !== text) {
+      if (onEditSubmit) onEditSubmit(editText.trim());
+    }
+    setIsEditing(false);
   };
 
   return (
@@ -237,12 +249,33 @@ export default function MessageBubble({ role, text, source, page, isStreaming, t
               ios: theme.isDark ? {} : { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6 },
               android: theme.isDark ? {} : { elevation: 2 }
             })
-          }
+          },
+        isEditing && isUser ? { minWidth: '80%' } : {}
       ]}>
-        {isStreaming && !text ? (
+        {isEditing ? (
+          <View style={styles.editContainer}>
+            <TextInput
+              style={[styles.editInput, { color: theme.bubbleUserText }]}
+              value={editText}
+              onChangeText={setEditText}
+              multiline
+              autoFocus
+              selectionColor={theme.isDark ? '#8BE9FD' : '#6366F1'}
+            />
+            <View style={styles.editActions}>
+              <TouchableOpacity onPress={() => setIsEditing(false)} style={styles.editActionBtn}>
+                <X size={16} color={theme.textMuted} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSaveEdit} style={[styles.editActionBtn, styles.editActionBtnPrimary]}>
+                <Send size={14} color="#FFF" />
+                <Text style={styles.editActionBtnText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : isStreaming && !text ? (
           <ThinkingDots theme={theme} />
         ) : (
-          renderMarkdown(text, theme, isUser)
+          renderMarkdown(text, theme, isUser, width)
         )}
 
         {/* Source metadata display */}
@@ -273,6 +306,22 @@ export default function MessageBubble({ role, text, source, page, isStreaming, t
               {copied ? 'Copied' : 'Copy'}
             </Text>
           </TouchableOpacity>
+        )}
+
+        {isUser && !isEditing && (
+          <View style={styles.userActionsRow}>
+            <TouchableOpacity onPress={handleCopy} style={styles.userActionBtn}>
+              {copied ? <Check size={14} color="#4ADE80" /> : <Copy size={14} color={theme.textMuted} />}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setIsEditing(true)} style={styles.userActionBtn}>
+              <Edit2 size={14} color={theme.textMuted} />
+            </TouchableOpacity>
+            {onDelete && (
+              <TouchableOpacity onPress={onDelete} style={styles.userActionBtn}>
+                <Trash2 size={14} color={theme.textMuted} />
+              </TouchableOpacity>
+            )}
+          </View>
         )}
       </View>
     </Animated.View>
@@ -308,7 +357,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   bubble: {
-    maxWidth: Platform.OS === 'web' ? '85%' : '92%',
+    maxWidth: Platform.OS === 'web' ? '85%' : '96%',
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -423,6 +472,53 @@ const styles = StyleSheet.create({
   copyText: {
     color: '#8E8E93',
     fontSize: 12,
+    marginLeft: 4,
+  },
+  userActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    alignSelf: 'flex-end',
+    gap: 12,
+  },
+  userActionBtn: {
+    padding: 4,
+  },
+  editContainer: {
+    width: '100%',
+  },
+  editInput: {
+    fontSize: 16,
+    lineHeight: 22,
+    minHeight: 40,
+    padding: 0,
+    margin: 0,
+    ...Platform.select({
+      web: { outlineStyle: 'none' } as any
+    })
+  },
+  editActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 10,
+    gap: 8,
+  },
+  editActionBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
+  editActionBtnPrimary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#6366F1',
+    paddingHorizontal: 12,
+  },
+  editActionBtnText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '600',
     marginLeft: 4,
   },
 });
