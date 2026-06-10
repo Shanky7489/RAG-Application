@@ -28,6 +28,31 @@ import {
 
 const generateSessionId = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
+const LEXAI_SVG = (color: string) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 157.4">
+  <path fill="${color}" d="m90.3 40.5c-0.2 4.9-0.7 12.5-0.9 14.5-0.1 0.6-0.3 1.2-0.8 1.5l-39.5 22.8c-2.7 1.5-5.1 4.7-6.4 8.5s-1 10.8-3.7 15.5-5.5 5.1-8.1 6.6l-5.7 3.7 3-36.7 0.2-0.4 44.2-24.6 17.7-11.4z"/>
+  <path fill="${color}" d="m76.3 34.4c-0.3 4.2-0.4 7.7-0.4 8.7 0 0.3-0.2 0.4-0.3 0.5l-48.7 28.4c-1.2 0.7-1.5 1.2-1.6 3.5l-1.9 22.8c-0.3 2.5-3.5 3.2-12.1 8.1l3.1-35.9 0.2-0.4 27.4-15.3 34.3-20.4z"/>
+  <path fill="${color}" d="m66.4 26-0.2 5.2-0.2 3.6c0 0.2-0.1 0.4-0.6 0.7l-35.5 19.9-18 10.3c-0.2 0.2-0.5 0.5-0.5 0.8l-0.7 8.6-1.5 18.4c0 0.4-0.1 0.5-0.5 0.8-2.7 1.6-7.3 3.7-7.3 3.7l2.6-30.5 0.1-1.4c0.1-1.7 0.2-4 0.4-4.2 0.2-0.5 1.4-1 2.2-1.5l10.8-5.9 33.5-18.6 15.4-9.9z"/>
+  <path fill="${color}" d="m60 117.1 1.1-15.3c0.1-0.8 0.4-1.1 0.9-1.4l39.7-22c2.4-1.3 6.2-4.1 7.1-13.3 1-10.1 4.3-14.7 9-17.3l7-3.8-0.9 12.2-2 24.5-0.5 0.5-52 29.8-9.4 6.1z"/>
+  <path fill="${color}" d="m73.4 123.3 0.5-8.7 0.4-0.8 48.9-27.1c1-0.6 1.4-1.4 1.4-3.2l2-24.7c0.2-1.8 1.7-2.3 3.1-3.2l8.9-5.5-2.6 32.9-0.2 4.3-0.2 0.4-26.9 15.3-35.3 20.3z"/>
+  <path fill="${color}" d="m83.5 131.7 0.4-8.2 0.2-0.9 53.8-29.9c0.6-0.3 0.8-0.5 0.8-1.7l2.2-27c0-0.7 0.6-0.9 1.6-1.5l5.9-3.3-2.9 36.1c0 0.3-0.1 0.5-0.5 0.8l-32.1 18.4-29.4 17.2z"/>
+  <path fill="${color}" d="m84.6 13.5v6.8l0.2 0.2s14.9-7.4 17.5-9c0.6-0.3 0.8-0.9 0.9-1.1 1.1-2.4 2.9-8.4 2.9-8.4l-21.3 11c-0.3 0.2-0.3 0.4-0.2 0.5z"/>
+  <path fill="${color}" d="m69.4 29.6 7.6-3.8s3.4-1.9 3.3-1.9l0.1-0.6-0.5-6.8-0.3-0.1s-9.4 4.6-9.7 5.3l-0.1 0.3-0.4 6.1v1.5z"/>
+  <path fill="${color}" d="m97.2 22-0.1 7.7 9.3-4.9 0.1-0.3-0.1-7.7-8.6 4.6-0.3 0.4-0.3 0.2z"/>
+  <path fill="${color}" d="m79.1 39 0.5-7.6 0.3-0.5 11.5-6.1 0.1 7.9-0.2 0.3-11.7 5.9-0.5 0.1z"/>
+  <path fill="${color}" d="m94.4 49.3c0-0.8 1-12.9 1-12.9l0.3-0.3 11.6-5.8h0.3l0.6 11.3-0.2 0.4-13.6 7.3z"/>
+  <path fill="${color}" d="m113.6 21.5-0.7-0.1 2.4-8.2 9.6-5.7-3.6 9.3-0.7 0.7-7 4z"/>
+  <path fill="${color}" d="m114.1 26.5 16.1-8.5c-0.3 3.2-0.9 11.9-1.7 13.9l-0.4 0.3-13.7 6.9c-0.5 0.2-0.4-12.5-0.3-12.6z"/>
+  <path fill="${color}" d="m43.7 155.6 3.5-9c0.2-0.5 0.4-0.9 1-1.2l13.8-7 3.4-1.5 0.2 0.4 0.1 6.6-0.2 0.4-21.8 11.3z"/>
+  <path fill="${color}" d="m25.2 150.1 3.8-9.4 0.4-0.6 8.3-4.2-0.3 7.7-0.4 0.5-11.8 6z"/>
+  <path fill="${color}" d="m20 139.5 1.4-12.5c0.2-0.7 0.3-1.2 1.2-1.6l10.5-5.5 3.3-1.5 0.2 11.7-0.3 0.9c-0.4 0.3-14.3 7.5-16.3 8.5z"/>
+  <path fill="${color}" d="m41.9 115.6 0.1 11.9h0.4l7.6-3.9 4.6-2.5 0.2-0.4 0.8-13.6-13.6 8.3-0.1 0.2z"/>
+  <path fill="${color}" d="m43.4 132.9v7.8l9.5-4.8 0.2-0.4 0.3-7.9-9.8 5.2-0.2 0.1z"/>
+  <path fill="${color}" d="m59 132.9v-7.4c0-0.6 0.2-1 0.9-1.2l10.7-5.7-0.1 1.5-0.5 6.4-0.3 0.2-5.6 3-5 2.9-0.1 0.3z"/>
+  <polygon fill="${color}" points="69.4 134.1 69.8 141.5 79.5 136.4 79.7 136 80.3 127.9 69.6 133.9"/>
+  <path fill="${color}" d="m113 21.5-0.1-0.1 0.2-4.4-0.1 4.5z"/>
+  <path fill="${color}" d="m113 17.3 0.1-3.7 0.3-0.2-0.4 3.9z"/>
+</svg>`;
+
 interface ThemeColors {
   isDark: boolean;
   background: string;
@@ -49,19 +74,19 @@ interface ThemeColors {
 const darkTheme: ThemeColors = {
   isDark: true,
   background: '#000000',
-  sidebarBg: '#1C1C1E',
-  headerBg: '#212121',
-  border: '#303030',
-  text: '#ECECEC',
-  textMuted: '#B4B4B4',
-  inputBg: '#2F2F2F',
-  inputBorder: '#424242',
-  bubbleUser: '#2F2F2F',
-  bubbleUserText: '#ECECEC',
+  sidebarBg: '#050505',
+  headerBg: '#000000',
+  border: '#151515',
+  text: '#FFFFFF',
+  textMuted: '#888888',
+  inputBg: '#0A0A0A',
+  inputBorder: '#222222',
+  bubbleUser: '#111111',
+  bubbleUserText: '#FFFFFF',
   bubbleAi: 'transparent',
-  bubbleAiText: '#ECECEC',
-  buttonBg: '#ECECEC',
-  buttonText: '#171717',
+  bubbleAiText: '#FFFFFF',
+  buttonBg: '#FFFFFF',
+  buttonText: '#000000',
 };
 
 const lightTheme: ThemeColors = {
@@ -88,10 +113,10 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const isDesktop = width >= 768;
 
-  const [isDark, setIsDark] = useState(true);
-  const theme = isDark ? darkTheme : lightTheme;
+  const isDark = true;
+  const theme = darkTheme;
 
-  const toggleTheme = () => setIsDark(prev => !prev);
+  const toggleTheme = () => { };
 
   const [sidebarOpen, setSidebarOpen] = useState(isDesktop);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -114,25 +139,6 @@ export default function ChatScreen() {
   const [authData, setAuthData] = useState<AuthData | null>(null);
   const [logoXml, setLogoXml] = useState<string | null>(null);
   const inputAreaRef = useRef<any>(null);
-
-  const blinkValue = useSharedValue(1);
-
-  useEffect(() => {
-    blinkValue.value = withRepeat(
-      withSequence(
-        withTiming(0.2, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.ease) })
-      ),
-      -1, // infinite loop
-      true // reverse
-    );
-  }, []);
-
-  const animatedIconStyle = useAnimatedStyle(() => {
-    return {
-      opacity: blinkValue.value,
-    };
-  });
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
@@ -557,13 +563,13 @@ export default function ChatScreen() {
                       onPress={() => setSidebarOpen(true)}
                       style={[styles.headerIconBtn, { marginRight: 8 }]}
                     >
-                      <Menu size={20} color={theme.isDark ? '#94A3B8' : '#64748B'} />
+                      <Menu size={24} color="#FFFFFF" />
                     </TouchableOpacity>
                   )}
                   <View
                     style={{
                       flexDirection: 'row',
-                      backgroundColor: theme.isDark ? '#1A1D24' : '#E2E8F0',
+                      backgroundColor: theme.isDark ? '#0A0A0A' : '#E2E8F0',
                       borderRadius: 12,
                       padding: 4,
                       marginLeft: isDesktop ? 0 : 4,
@@ -576,7 +582,7 @@ export default function ChatScreen() {
                         paddingVertical: 8,
                         paddingHorizontal: 18,
                         borderRadius: 8,
-                        backgroundColor: appMode === 'RAG' ? (theme.isDark ? '#2D323C' : '#FFFFFF') : 'transparent',
+                        backgroundColor: appMode === 'RAG' ? (theme.isDark ? '#151515' : '#FFFFFF') : 'transparent',
                         ...Platform.select({
                           web: appMode === 'RAG' ? { boxShadow: theme.isDark ? '0 2px 8px rgba(0,0,0,0.4)' : '0 1px 3px rgba(0,0,0,0.1)' } as any : {},
                           ios: appMode === 'RAG' ? { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: theme.isDark ? 0.3 : 0.1, shadowRadius: 3 } : {},
@@ -586,8 +592,8 @@ export default function ChatScreen() {
                       onPress={() => handleModeSwitch('RAG')}
                       activeOpacity={0.7}
                     >
-                      <Sparkles size={16} color={appMode === 'RAG' ? (theme.isDark ? '#F1F5F9' : '#0F172A') : theme.textMuted} style={{ marginRight: 6 }} />
-                      <Text style={{ fontSize: 14, fontWeight: appMode === 'RAG' ? '700' : '600', color: appMode === 'RAG' ? theme.text : theme.textMuted }}>
+                      <Sparkles size={20} color={appMode === 'RAG' ? '#FFFFFF' : theme.textMuted} style={{ marginRight: 6 }} />
+                      <Text style={{ fontSize: 18, fontWeight: appMode === 'RAG' ? '700' : '600', color: appMode === 'RAG' ? '#FFFFFF' : theme.textMuted }}>
                         RAG
                       </Text>
                     </TouchableOpacity>
@@ -608,8 +614,8 @@ export default function ChatScreen() {
                       onPress={() => handleModeSwitch('CMS')}
                       activeOpacity={0.7}
                     >
-                      <FileText size={16} color={appMode === 'CMS' ? (theme.isDark ? '#F1F5F9' : '#0F172A') : theme.textMuted} style={{ marginRight: 6 }} />
-                      <Text style={{ fontSize: 14, fontWeight: appMode === 'CMS' ? '700' : '600', color: appMode === 'CMS' ? theme.text : theme.textMuted }}>
+                      <FileText size={20} color={appMode === 'CMS' ? '#FFFFFF' : theme.textMuted} style={{ marginRight: 6 }} />
+                      <Text style={{ fontSize: 18, fontWeight: appMode === 'CMS' ? '700' : '600', color: appMode === 'CMS' ? '#FFFFFF' : theme.textMuted }}>
                         CMS
                       </Text>
                     </TouchableOpacity>
@@ -618,11 +624,11 @@ export default function ChatScreen() {
                 <TouchableOpacity
                   style={[
                     styles.headerIconBtn,
-                    { marginLeft: 8, backgroundColor: theme.isDark ? '#16181C' : '#F1F5F9' }
+                    { marginLeft: 8, backgroundColor: theme.isDark ? '#0A0A0A' : '#F1F5F9' }
                   ]}
                   onPress={() => setRightSidebarOpen(true)}
                 >
-                  <Database size={20} color={theme.isDark ? '#94A3B8' : '#64748B'} />
+                  <Database size={24} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
             )}
@@ -642,35 +648,33 @@ export default function ChatScreen() {
                 ) : messages.length === 0 ? (
                   <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                     <View style={styles.centerContainer}>
-                      <Animated.View style={[styles.emptyIconWrap, animatedIconStyle]}>
+                      <View style={styles.emptyIconWrap}>
                         {isMsmeMode ? (
                           <FileText size={46} color={theme.isDark ? '#FFFFFF' : '#0F172A'} />
                         ) : (
-                          <View style={{ position: 'relative', alignItems: 'center', justifyContent: 'center', width: 84, height: 84, borderRadius: 42, backgroundColor: theme.isDark ? '#2D323C' : '#E2E8F0', borderWidth: 1, borderColor: theme.isDark ? '#3F3F3F' : '#CBD5E1', shadowColor: theme.isDark ? '#FFFFFF' : '#000000', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.15, shadowRadius: 16, elevation: 8 }}>
-                            <Bot size={44} color={theme.text} />
-                          </View>
+                          <SvgXml xml={LEXAI_SVG(theme.text)} width="72" height="72" />
                         )}
-                      </Animated.View>
+                      </View>
                       <Text style={[styles.emptyText, { color: theme.text, marginBottom: isMsmeMode ? 8 : 4, fontSize: width < 380 ? 28 : 34, lineHeight: width < 380 ? 34 : 40 }]}>
                         {isMsmeMode ? "MSME Form Assistant" : "Chat with LexAI"}
                       </Text>
-                      
+
                       {!isMsmeMode && (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                          <Text style={{ fontSize: 11, color: theme.textMuted, marginRight: 6, fontWeight: '700', letterSpacing: 0.5 }}>POWERED BY</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                          <Text style={{ fontSize: 14, color: theme.textMuted, marginRight: 8, fontWeight: '800', letterSpacing: 0.5 }}>POWERED BY</Text>
                           {Platform.OS === 'web' ? (
-                            <Image 
+                            <Image
                               source={{ uri: 'https://www.cnet-india.com/Master_Logo_File.svg' }}
                               style={[
-                                { width: 65, height: 16 },
+                                { width: 45, height: 16 },
                                 theme.isDark && { filter: 'brightness(0) invert(1)' } as any
                               ]}
                               resizeMode="contain"
                             />
                           ) : processedLogoXml ? (
-                            <SvgXml width="65" height="16" xml={processedLogoXml} />
+                            <SvgXml width="45" height="16" xml={processedLogoXml} />
                           ) : (
-                            <SvgUri width="65" height="16" uri="https://www.cnet-india.com/Master_Logo_File.svg" />
+                            <SvgUri width="45" height="16" uri="https://www.cnet-india.com/Master_Logo_File.svg" />
                           )}
                         </View>
                       )}
@@ -683,15 +687,15 @@ export default function ChatScreen() {
 
                       {isMsmeMode && (
                         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 36, gap: 20, width: '100%', paddingHorizontal: 16 }}>
-                          <TouchableOpacity 
+                          <TouchableOpacity
                             onPress={() => inputAreaRef.current?.pickDocument()}
                             style={{ width: 145, height: 145, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: theme.isDark ? '#2D323C' : '#E2E8F0', borderRadius: 75, shadowColor: theme.isDark ? '#000' : '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 }}
                           >
                             <FileText size={44} color={theme.text} style={{ marginBottom: 12 }} />
                             <Text style={{ color: theme.text, fontSize: 15, fontWeight: '600', textAlign: 'center' }}>Upload Docs</Text>
                           </TouchableOpacity>
-                          
-                          <TouchableOpacity 
+
+                          <TouchableOpacity
                             onPress={() => inputAreaRef.current?.takeImage()}
                             style={{ width: 145, height: 145, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: theme.isDark ? '#2D323C' : '#E2E8F0', borderRadius: 75, shadowColor: theme.isDark ? '#000' : '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 }}
                           >

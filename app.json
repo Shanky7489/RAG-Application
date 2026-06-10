@@ -40,10 +40,7 @@
     ],
     "scheme": "lexai",
     "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "f3751d15-51ec-429e-8329-21e5485e8695"
-      }
+      "router": {}
     }
   }
 }

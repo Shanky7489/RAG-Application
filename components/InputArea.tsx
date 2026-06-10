@@ -15,6 +15,7 @@ import {
   Alert,
   Pressable,
   Keyboard,
+  LayoutAnimation,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -32,6 +33,7 @@ import {
 } from "lucide-react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+import Voice from "@react-native-voice/voice";
 import { API_BASE_URL } from "../services/api";
 import { MODELS, MODEL_ICONS } from "../services/constants";
 
@@ -173,6 +175,27 @@ const InputArea = forwardRef<InputAreaRef, InputAreaProps>(({
         webRecognitionRef.current = rec;
       }
     }
+
+    if (Platform.OS !== "web") {
+      Voice.onSpeechResults = (e) => {
+        if (e.value && e.value.length > 0) {
+          setInterimText(e.value[0]);
+        }
+      };
+
+      Voice.onSpeechError = (e) => {
+        console.error("Native Speech error", e.error);
+        setIsListening(false);
+      };
+
+      Voice.onSpeechEnd = () => {
+        setIsListening(false);
+      };
+
+      return () => {
+        Voice.destroy().then(Voice.removeAllListeners);
+      };
+    }
   }, [micLanguage]);
 
   // Mobile Speech Recognition events removed for Expo Go compatibility
@@ -197,6 +220,8 @@ const InputArea = forwardRef<InputAreaRef, InputAreaProps>(({
       // STOP
       if (Platform.OS === "web") {
         webRecognitionRef.current?.stop();
+      } else {
+        try { await Voice.stop(); } catch (e) { console.log(e); }
       }
       setIsListening(false);
       if (interimText) {
@@ -217,10 +242,14 @@ const InputArea = forwardRef<InputAreaRef, InputAreaProps>(({
           alert("Speech Recognition not supported on this browser.");
         }
       } else {
-        Alert.alert(
-          "Feature Unavailable",
-          "Voice typing is not available in the Expo Go app. To use this feature, the app must be built with custom native code."
-        );
+        try {
+          setIsListening(true);
+          await Voice.start(micLanguage);
+        } catch (e) {
+          console.error(e);
+          setIsListening(false);
+          Alert.alert("Error", "Could not start native voice recognition.");
+        }
       }
     }
   };
@@ -273,6 +302,7 @@ const InputArea = forwardRef<InputAreaRef, InputAreaProps>(({
   const handleContentSizeChange = (e: any) => {
     const height = e.nativeEvent.contentSize.height;
     if (height > 0) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setInputHeight(Math.min(120, Math.max(40, height)));
     }
   };
@@ -454,7 +484,7 @@ const InputArea = forwardRef<InputAreaRef, InputAreaProps>(({
   // Premium adaptive input styling
   const containerBg = theme.background;
   const inputBg = theme.inputBg;
-  const inputBorderColor = isFocused ? theme.buttonBg : theme.border;
+  const inputBorderColor = isFocused ? theme.buttonBg : (theme.isDark ? "#2c3235ff" : "#CBD5E1");
   const iconColor = theme.textMuted;
   const iconActiveColor = theme.isDark ? "#C5A880" : "#B89565";
   const sendBtnActive = theme.buttonBg;
@@ -600,17 +630,17 @@ const InputArea = forwardRef<InputAreaRef, InputAreaProps>(({
               onStartShouldSetResponder={() => true}
             >
               <TouchableOpacity style={styles.attachmentOption} onPress={handlePickDocument}>
-                <FileText size={16} color={theme.isDark ? "#D1D5DB" : "#475569"} style={styles.attachmentIcon} />
+                <FileText size={20} color={theme.isDark ? "#D1D5DB" : "#475569"} style={styles.attachmentIcon} />
                 <Text style={[styles.attachmentOptionText, { color: theme.isDark ? "#E0E0E0" : "#1F2937" }]}>Add document</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.attachmentOption} onPress={handlePickImage}>
-                <ImageIcon size={16} color={theme.isDark ? "#D1D5DB" : "#475569"} style={styles.attachmentIcon} />
+                <ImageIcon size={20} color={theme.isDark ? "#D1D5DB" : "#475569"} style={styles.attachmentIcon} />
                 <Text style={[styles.attachmentOptionText, { color: theme.isDark ? "#E0E0E0" : "#1F2937" }]}>Add photos</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.attachmentOption} onPress={handleTakeImage}>
-                <Camera size={16} color={theme.isDark ? "#D1D5DB" : "#475569"} style={styles.attachmentIcon} />
+                <Camera size={20} color={theme.isDark ? "#D1D5DB" : "#475569"} style={styles.attachmentIcon} />
                 <Text style={[styles.attachmentOptionText, { color: theme.isDark ? "#E0E0E0" : "#1F2937" }]}>Camera</Text>
               </TouchableOpacity>
             </View>
@@ -765,11 +795,11 @@ const InputArea = forwardRef<InputAreaRef, InputAreaProps>(({
                 const IconComp = MODEL_ICONS[currentModel.iconName];
                 return (
                   <>
-                    <IconComp size={12} color={theme.isDark ? "#94A3B8" : "#64748B"} style={{ marginRight: 6 }} />
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: theme.text, marginRight: 4 }}>
+                    <IconComp size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: theme.text, marginRight: 4 }}>
                       {currentModel.name}
                     </Text>
-                    <ChevronDown size={12} color={theme.isDark ? "#64748B" : "#94A3B8"} />
+                    <ChevronDown size={16} color="#FFFFFF" />
                   </>
                 );
               })()}
@@ -789,7 +819,7 @@ const InputArea = forwardRef<InputAreaRef, InputAreaProps>(({
               disabled={isSending}
             >
               <Plus
-                size={16}
+                size={26}
                 color={theme.isDark ? '#D1D5DB' : '#64748B'}
               />
             </TouchableOpacity>
@@ -809,8 +839,14 @@ const InputArea = forwardRef<InputAreaRef, InputAreaProps>(({
             }}
             editable={!isSending}
             onKeyPress={handleKeyPress}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
+            onFocus={() => {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              setIsFocused(true);
+            }}
+            onBlur={() => {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              setIsFocused(false);
+            }}
             onContentSizeChange={handleContentSizeChange}
           />
 
@@ -820,7 +856,7 @@ const InputArea = forwardRef<InputAreaRef, InputAreaProps>(({
             onPress={toggleVoiceTyping}
             disabled={isSending}
           >
-            <Mic size={20} color={isListening ? "#EF4444" : (isFocused ? iconActiveColor : iconColor)} />
+            <Mic size={26} color={isListening ? "#FFFFFF" : (isFocused ? "#FFFFFF" : iconColor)} />
           </TouchableOpacity>
 
           {/* Send or Stop Button */}
@@ -834,13 +870,13 @@ const InputArea = forwardRef<InputAreaRef, InputAreaProps>(({
           >
             {isSending ? (
               <Square
-                size={14}
+                size={18}
                 fill={theme.isDark ? "#FFFFFF" : "#0F172A"}
                 color={theme.isDark ? "#FFFFFF" : "#0F172A"}
               />
             ) : (
               <Send
-                size={17}
+                size={24}
                 color={
                   canSend
                     ? theme.isDark
@@ -885,16 +921,16 @@ const styles = StyleSheet.create({
   attachmentOption: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderRadius: 8,
   },
   attachmentIcon: {
     marginRight: 12,
   },
   attachmentOptionText: {
-    fontSize: 13,
-    fontWeight: "400",
+    fontSize: 15,
+    fontWeight: "500",
   },
   plusButton: {
     width: 32,
@@ -987,7 +1023,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   toggleText: {
-    fontSize: 12,
+    fontSize: 18,
     fontWeight: "500",
   },
   inputRow: {
@@ -1016,7 +1052,7 @@ const styles = StyleSheet.create({
     }),
   },
   iconButton: {
-    padding: 9,
+    padding: 10,
     borderRadius: 12,
   },
   input: {
@@ -1033,9 +1069,9 @@ const styles = StyleSheet.create({
     }),
   },
   sendButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 13,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 4,
@@ -1268,7 +1304,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   dropdownTitle: {
-    fontSize: 12,
+    fontSize: 18,
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.8,
@@ -1290,13 +1326,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modelNameText: {
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: "600",
     marginBottom: 2,
   },
   modelDescText: {
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 13,
+    lineHeight: 18,
   },
   checkIcon: {
     marginLeft: 8,

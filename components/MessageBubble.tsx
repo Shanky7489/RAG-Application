@@ -39,7 +39,7 @@ function renderMarkdown(text: string, theme: any, isUser: boolean, width: number
             <Text style={styles.codeLangText}>{language.toUpperCase()}</Text>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 12 }}>
-            <Text style={[styles.codeText, { color: theme.isDark ? '#8BE9FD' : '#0F0F14' }]}>
+            <Text style={[styles.codeText, { color: theme.isDark ? '#8BE9FD' : '#0F0F14' }]} selectable={true}>
               {codeContent}
             </Text>
           </ScrollView>
@@ -97,6 +97,7 @@ function renderMarkdown(text: string, theme: any, isUser: boolean, width: number
             return (
               <Text
                 key={lineIdx}
+                selectable={true}
                 style={[
                   styles.headingText,
                   { fontSize, color: textColor, marginTop: 12, marginBottom: 6, fontWeight: 'bold' }
@@ -110,8 +111,8 @@ function renderMarkdown(text: string, theme: any, isUser: boolean, width: number
           if (isBullet) {
             return (
               <View key={lineIdx} style={styles.bulletRow}>
-                <Text style={[styles.bulletDot, { color: textColor }]}>•</Text>
-                <Text style={[styles.bulletText, { color: textColor }]}>
+                <Text style={[styles.bulletDot, { color: textColor, fontSize: width < 380 ? 14 : 15 }]}>•</Text>
+                <Text style={[styles.bulletText, { color: textColor, fontSize: width < 380 ? 14 : 15, lineHeight: width < 380 ? 22 : 23 }]} selectable={true}>
                   {textElements}
                 </Text>
               </View>
@@ -126,9 +127,10 @@ function renderMarkdown(text: string, theme: any, isUser: boolean, width: number
           return (
             <Text
               key={lineIdx}
+              selectable={true}
               style={[
                 styles.paragraphText,
-                { color: textColor, marginVertical: 2, lineHeight: 22 }
+                { color: textColor, marginVertical: 2, lineHeight: width < 380 ? 21 : 23, fontSize: width < 380 ? 14 : 15 }
               ]}
             >
               {textElements}
