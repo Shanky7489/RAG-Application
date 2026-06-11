@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, useWindowDimensions, Modal, Image, Linking } from 'react-native';
-import { Menu, Plus, UploadCloud, Sun, Moon, X, ChevronDown, Check, Database, FileText, Sparkles } from 'lucide-react-native';
+import { Menu, Plus, UploadCloud, Sun, Moon, X, ChevronDown, Check, Database, FileText, Sparkles, Layers } from 'lucide-react-native';
 import Sidebar from '../components/Sidebar';
 import RightSidebar from '../components/RightSidebar';
 import MessageBubble from '../components/MessageBubble';
@@ -602,6 +602,15 @@ export default function ChatScreen() {
                     />
                   </TouchableOpacity>
                 </View>
+                <TouchableOpacity
+                  style={[
+                    styles.headerIconBtn,
+                    { marginLeft: 8, backgroundColor: theme.isDark ? '#16181C' : '#F1F5F9' }
+                  ]}
+                  onPress={() => router.push('/dms')}
+                >
+                  <Layers size={20} color={theme.isDark ? '#94A3B8' : '#64748B'} />
+                </TouchableOpacity>
                 <TouchableOpacity
                   style={[
                     styles.headerIconBtn,

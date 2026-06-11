@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Leave this empty unless using a public tunnel (like ngrok/cloudflare) for the app
 // NOTE: Cloudflare quick tunnels often block CORS preflight (OPTIONS) requests.
 // Use empty string '' for local development, or set to tunnel URL for mobile testing.
-const BACKEND_TUNNEL_URL = 'https://tier-charlie-use-advocate.trycloudflare.com';
+const BACKEND_TUNNEL_URL = 'https://camcorder-utc-kiss-suggestion.trycloudflare.com';
 
 // On Web (Desktop), use 127.0.0.1. On Mobile, use the PC's local Wi-Fi IP.
 export const API_BASE_URL = BACKEND_TUNNEL_URL || (Platform.OS === 'web' ? 'http://127.0.0.1:8001' : 'http://192.168.29.205:8001');
@@ -149,8 +149,77 @@ export const clearAllDocuments = async (ragVersion: string = "version1"): Promis
   return response.data;
 };
 
+export const getDocumentContent = async (fileName: string, ragVersion: string = "version1"): Promise<any> => {
+  const response = await api.get(`/documents/${encodeURIComponent(fileName)}/content?rag_version=${encodeURIComponent(ragVersion)}`);
+  return response.data;
+};
+
+export const updateDocumentContent = async (fileName: string, content: string, ragVersion: string = "version1"): Promise<any> => {
+  const response = await api.put(`/documents/${encodeURIComponent(fileName)}/content?rag_version=${encodeURIComponent(ragVersion)}`, { content });
+  return response.data;
+};
+
+export const searchDocuments = async (query: string, ragVersion: string = "version1"): Promise<any> => {
+  const response = await api.get(`/documents/search?q=${encodeURIComponent(query)}&rag_version=${encodeURIComponent(ragVersion)}`);
+  return response.data;
+};
+
 export const getQueryTrace = async (ragVersion: string = "version1"): Promise<any> => {
   const response = await api.get(`/query_trace?rag_version=${encodeURIComponent(ragVersion)}`);
+  return response.data;
+};
+
+export const previewParseDocument = async (fileUri: string, fileName: string, mimeType: string, ragVersion: string = "version1"): Promise<{ file_name: string; content: string }> => {
+  const formData = new FormData();
+
+  if (Platform.OS === 'web') {
+    const response = await fetch(fileUri);
+    const blob = await response.blob();
+    const file = new File([blob], fileName, { type: mimeType || 'application/octet-stream' });
+    formData.append('file', file);
+  } else {
+    formData.append('file', {
+      uri: fileUri,
+      name: fileName,
+      type: mimeType || 'application/octet-stream',
+    } as any);
+  }
+
+  const response = await api.post(`/documents/preview-parse?rag_version=${encodeURIComponent(ragVersion)}`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+    timeout: 3 * 60 * 1000, // Parsing could take 1-2 mins
+  });
+
+  return response.data;
+};
+
+export const replaceDocument = async (fileUri: string, fileName: string, mimeType: string, oldFileName: string, ragVersion: string = "version1"): Promise<any> => {
+  const formData = new FormData();
+
+  if (Platform.OS === 'web') {
+    const response = await fetch(fileUri);
+    const blob = await response.blob();
+    const file = new File([blob], fileName, { type: mimeType || 'application/octet-stream' });
+    formData.append('file', file);
+  } else {
+    formData.append('file', {
+      uri: fileUri,
+      name: fileName,
+      type: mimeType || 'application/octet-stream',
+    } as any);
+  }
+
+  formData.append('old_file_name', oldFileName);
+
+  const response = await api.post(`/documents/replace?rag_version=${encodeURIComponent(ragVersion)}`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+    timeout: 10 * 60 * 1000, // Full parsing + chunking + embedding might take long
+  });
+
   return response.data;
 };
 

@@ -1,8 +1,163 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, ScrollView, Alert, TextInput, Modal, ActivityIndicator } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Layout, FadeIn, FadeOut } from 'react-native-reanimated';
-import { Database, FileText, ChevronRight, Share2, Activity, HardDrive, Layers, Trash2, Search, ListFilter, ShieldCheck } from 'lucide-react-native';
-import { deleteDocument, clearAllDocuments } from '../services/api';
+import { Database, FileText, ChevronRight, Share2, Activity, HardDrive, Layers, Trash2, Search, ListFilter, ShieldCheck, Edit2, Eye } from 'lucide-react-native';
+import { deleteDocument, clearAllDocuments, getDocumentContent, updateDocumentContent, searchDocuments } from '../services/api';
+import Markdown from 'react-native-markdown-display';
+
+// ─── Markdown Theme Styles ───────────────────────────────────────────────────
+
+const getMarkdownStyles = (theme: any) => ({
+  body: {
+    color: theme.text,
+    fontSize: 14,
+    lineHeight: 24,
+  },
+  heading1: {
+    color: theme.text,
+    fontSize: 22,
+    fontWeight: '800' as const,
+    marginTop: 16,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+    paddingBottom: 4,
+  },
+  heading2: {
+    color: theme.text,
+    fontSize: 18,
+    fontWeight: '700' as const,
+    marginTop: 14,
+    marginBottom: 6,
+  },
+  heading3: {
+    color: theme.text,
+    fontSize: 16,
+    fontWeight: '700' as const,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  heading4: {
+    color: theme.text,
+    fontSize: 15,
+    fontWeight: '600' as const,
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  paragraph: {
+    color: theme.text,
+    fontSize: 14,
+    lineHeight: 24,
+    marginBottom: 10,
+  },
+  strong: {
+    color: theme.text,
+    fontWeight: '700' as const,
+  },
+  em: {
+    color: theme.textMuted,
+    fontStyle: 'italic' as const,
+  },
+  bullet_list: {
+    marginBottom: 10,
+  },
+  ordered_list: {
+    marginBottom: 10,
+  },
+  list_item: {
+    color: theme.text,
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 2,
+  },
+  code_inline: {
+    backgroundColor: theme.isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.08)',
+    color: '#6366F1',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 12,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  fence: {
+    backgroundColor: theme.isDark ? '#1E1E2E' : '#F1F5F9',
+    color: theme.text,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 12,
+    lineHeight: 18,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.border,
+    marginBottom: 10,
+  },
+  code_block: {
+    backgroundColor: theme.isDark ? '#1E1E2E' : '#F1F5F9',
+    color: theme.text,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 12,
+    lineHeight: 18,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.border,
+    marginBottom: 10,
+  },
+  blockquote: {
+    backgroundColor: theme.isDark ? 'rgba(99, 102, 241, 0.06)' : 'rgba(99, 102, 241, 0.04)',
+    borderLeftWidth: 4,
+    borderLeftColor: '#6366F1',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 10,
+    borderRadius: 4,
+  },
+  table: {
+    borderWidth: 1,
+    borderColor: theme.border,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  thead: {
+    backgroundColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+  },
+  th: {
+    color: theme.text,
+    fontWeight: '700' as const,
+    fontSize: 12,
+    padding: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+    borderRightWidth: 1,
+    borderRightColor: theme.border,
+  },
+  td: {
+    color: theme.text,
+    fontSize: 12,
+    padding: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+    borderRightWidth: 1,
+    borderRightColor: theme.border,
+  },
+  tr: {
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+  },
+  hr: {
+    backgroundColor: theme.border,
+    height: 1,
+    marginVertical: 12,
+  },
+  link: {
+    color: '#6366F1',
+    textDecorationLine: 'underline' as const,
+  },
+  image: {
+    borderRadius: 8,
+    marginVertical: 8,
+  },
+});
 
 const { width } = Dimensions.get('window');
 const RIGHT_SIDEBAR_WIDTH = 340; // Slightly wider for trace blocks
@@ -33,6 +188,17 @@ export default function RightSidebar({
   const [deletingFiles, setDeletingFiles] = React.useState<Record<string, boolean>>({});
   const [hiddenFiles, setHiddenFiles] = React.useState<Record<string, boolean>>({});
   const [expandedChunk, setExpandedChunk] = useState<string | null>(null);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchTimeout, setSearchTimeout] = useState<any>(null);
+
+  const [editingFile, setEditingFile] = useState<string | null>(null);
+  const [fileContent, setFileContent] = useState('');
+  const [isEditorLoading, setIsEditorLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isModalEditing, setIsModalEditing] = useState(false);
 
   const translateX = useSharedValue(RIGHT_SIDEBAR_WIDTH);
 
@@ -102,6 +268,59 @@ export default function RightSidebar({
           }
         ]
       );
+    }
+  };
+
+  const handleSearch = (text: string) => {
+    setSearchQuery(text);
+    if (searchTimeout) clearTimeout(searchTimeout);
+    
+    if (text.trim().length === 0) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+    
+    setIsSearching(true);
+    setSearchTimeout(setTimeout(async () => {
+      try {
+        const results = await searchDocuments(text, selectedModel);
+        setSearchResults(results);
+      } catch (err) {
+        console.error("Search failed:", err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 500));
+  };
+
+  const handleOpenFile = async (fileName: string) => {
+    setEditingFile(fileName);
+    setIsEditorLoading(true);
+    setIsModalEditing(false);
+    try {
+      const data = await getDocumentContent(fileName, selectedModel);
+      setFileContent(data.content || '');
+    } catch (err) {
+      Alert.alert("Error", "Could not load document content. It might not be available.");
+      setEditingFile(null);
+    } finally {
+      setIsEditorLoading(false);
+    }
+  };
+
+  const handleSaveFile = async () => {
+    if (!editingFile) return;
+    setIsSaving(true);
+    try {
+      await updateDocumentContent(editingFile, fileContent, selectedModel);
+      Alert.alert("Success", "Document updated and re-ingested successfully.");
+      setEditingFile(null);
+      if (onRefreshStats) onRefreshStats();
+    } catch (err) {
+      Alert.alert("Error", "Failed to save document. " + err);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -176,16 +395,54 @@ export default function RightSidebar({
           )}
         </View>
 
-        {files.length === 0 ? (
+        <View style={styles.searchContainer}>
+          <Search size={16} color={theme.textMuted} style={styles.searchIcon} />
+          <TextInput
+            style={[styles.searchInput, { color: theme.text, backgroundColor: theme.isDark ? '#2F3336' : '#FFFFFF' }]}
+            placeholder="Search documents..."
+            placeholderTextColor={theme.textMuted}
+            value={searchQuery}
+            onChangeText={handleSearch}
+          />
+        </View>
+
+        {searchQuery.trim().length > 0 ? (
+          <View style={styles.fileList}>
+            {isSearching ? (
+              <ActivityIndicator size="small" color="#3B82F6" style={{ marginTop: 10 }} />
+            ) : searchResults.length > 0 ? (
+              searchResults.map((res, idx) => (
+                <TouchableOpacity key={`search-${idx}`} style={[styles.searchItem, { borderBottomColor: theme.isDark ? '#2F3336' : '#E2E8F0' }]} onPress={() => handleOpenFile(res.file_name)}>
+                  <View style={styles.searchItemHeader}>
+                    <FileText size={14} color={theme.isDark ? '#94A3B8' : '#64748B'} style={{ marginRight: 8 }} />
+                    <Text style={[styles.fileName, { color: theme.text }]} numberOfLines={1}>{res.file_name}</Text>
+                    <View style={styles.matchBadge}>
+                      <Text style={styles.matchBadgeText}>{res.matches} matches</Text>
+                    </View>
+                  </View>
+                  {res.snippets.map((snip: string, sIdx: number) => (
+                    <Text key={sIdx} style={[styles.snippetText, { color: theme.textMuted }]} numberOfLines={2}>
+                      "...{snip}..."
+                    </Text>
+                  ))}
+                </TouchableOpacity>
+              ))
+            ) : (
+              <Text style={[styles.emptyText, { color: theme.textMuted }]}>No matches found.</Text>
+            )}
+          </View>
+        ) : files.length === 0 ? (
           <Text style={[styles.emptyText, { color: theme.textMuted }]}>No documents ingested yet.</Text>
         ) : (
           <View style={styles.fileList}>
             {files.map((file: string, idx: number) => (
               <View key={idx} style={[styles.fileItem, { borderBottomColor: theme.isDark ? '#2F3336' : '#E2E8F0' }]}>
-                <FileText size={14} color={theme.isDark ? '#94A3B8' : '#64748B'} style={{ marginRight: 8 }} />
-                <Text style={[styles.fileName, { color: theme.text, opacity: deletingFiles[file] ? 0.5 : 1 }]} numberOfLines={1} ellipsizeMode="middle">
-                  {file}
-                </Text>
+                <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }} onPress={() => handleOpenFile(file)}>
+                  <FileText size={14} color={theme.isDark ? '#94A3B8' : '#64748B'} style={{ marginRight: 8 }} />
+                  <Text style={[styles.fileName, { color: theme.text, opacity: deletingFiles[file] ? 0.5 : 1 }]} numberOfLines={1} ellipsizeMode="middle">
+                    {file}
+                  </Text>
+                </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => handleDelete(file)}
                   disabled={deletingFiles[file]}
@@ -361,6 +618,70 @@ export default function RightSidebar({
         {activeTab === 'database' ? renderDatabaseStats() : renderQueryStats()}
 
       </Animated.View>
+
+      {/* Document Editor Modal */}
+      <Modal visible={!!editingFile} animationType="slide" transparent={true} onRequestClose={() => setEditingFile(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.sidebarBg }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.text }]} numberOfLines={1}>{editingFile}</Text>
+              
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <TouchableOpacity 
+                  onPress={() => setIsModalEditing(!isModalEditing)} 
+                  style={[styles.toggleModeBtn, { backgroundColor: theme.isDark ? '#2F3336' : '#E2E8F0' }]}
+                >
+                  {isModalEditing ? (
+                    <>
+                      <Eye size={14} color={theme.text} />
+                      <Text style={[styles.toggleModeText, { color: theme.text }]}>View</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Edit2 size={14} color={theme.text} />
+                      <Text style={[styles.toggleModeText, { color: theme.text }]}>Edit</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity onPress={() => setEditingFile(null)} style={styles.modalCloseBtn}>
+                  <Text style={{ color: theme.textMuted }}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            {isEditorLoading ? (
+              <View style={styles.modalLoading}>
+                <ActivityIndicator size="large" color="#3B82F6" />
+                <Text style={{ color: theme.textMuted, marginTop: 10 }}>Loading content...</Text>
+              </View>
+            ) : isModalEditing ? (
+              <TextInput
+                style={[styles.editorInput, { color: theme.text, backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9' }]}
+                multiline
+                value={fileContent}
+                onChangeText={setFileContent}
+                textAlignVertical="top"
+              />
+            ) : (
+              <ScrollView style={[styles.markdownViewer, { backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9' }]} showsVerticalScrollIndicator={false}>
+                <Markdown style={getMarkdownStyles(theme)}>{fileContent}</Markdown>
+              </ScrollView>
+            )}
+            
+            <View style={styles.modalFooter}>
+              <TouchableOpacity 
+                style={[styles.saveBtn, (isSaving || isEditorLoading) && { opacity: 0.7 }]} 
+                onPress={handleSaveFile}
+                disabled={isSaving || isEditorLoading}
+              >
+                {isSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveBtnText}>Save & Re-ingest</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </>
   );
 }
@@ -601,5 +922,131 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 8,
     lineHeight: 16,
-  }
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: 10,
+    zIndex: 1,
+  },
+  searchInput: {
+    flex: 1,
+    height: 36,
+    borderRadius: 8,
+    paddingLeft: 36,
+    paddingRight: 10,
+    fontSize: 13,
+  },
+  searchItem: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  searchItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  matchBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  matchBadgeText: {
+    fontSize: 10,
+    color: '#D97706',
+    fontWeight: '600',
+  },
+  snippetText: {
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 800,
+    height: '90%',
+    borderRadius: 16,
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(150,150,150,0.2)',
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+    marginRight: 16,
+  },
+  modalCloseBtn: {
+    padding: 8,
+  },
+  modalLoading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editorInput: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    fontSize: 14,
+    lineHeight: 24,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
+  },
+  markdownViewer: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 16,
+  },
+  saveBtn: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 140,
+    alignItems: 'center',
+  },
+  saveBtnText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  toggleModeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 6,
+  },
+  toggleModeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
 });
