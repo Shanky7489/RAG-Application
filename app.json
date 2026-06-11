@@ -4,7 +4,8 @@
     "slug": "lexai",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "backgroundColor": "#0A0A0A",
+    "icon": "./assets/favicon.png",
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/splash.png",
@@ -23,7 +24,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/favicon.png",
         "backgroundColor": "#0A0A0A"
       },
       "package": "com.anonymous.lexai",
@@ -40,7 +41,10 @@
     ],
     "scheme": "lexai",
     "extra": {
-      "router": {}
+      "router": {},
+      "eas": {
+        "projectId": "13fde2d8-1136-4a9c-bc6a-bda556d1c29d"
+      }
     }
   }
 }

@@ -16,6 +16,7 @@ import {
   Pressable,
   Keyboard,
   LayoutAnimation,
+  PermissionsAndroid,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -243,6 +244,22 @@ const InputArea = forwardRef<InputAreaRef, InputAreaProps>(({
         }
       } else {
         try {
+          if (Platform.OS === 'android') {
+            const granted = await PermissionsAndroid.request(
+              PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+              {
+                title: 'Microphone Permission',
+                message: 'App needs access to your microphone to transcribe your voice.',
+                buttonNeutral: 'Ask Me Later',
+                buttonNegative: 'Cancel',
+                buttonPositive: 'OK',
+              },
+            );
+            if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+              Alert.alert("Permission Denied", "Microphone permission is required to use voice typing.");
+              return;
+            }
+          }
           setIsListening(true);
           await Voice.start(micLanguage);
         } catch (e) {
@@ -494,7 +511,7 @@ const InputArea = forwardRef<InputAreaRef, InputAreaProps>(({
   const canSend = (text.trim() || files.length > 0) && !isSending;
 
   return (
-    <View style={[styles.container, { backgroundColor: containerBg, paddingBottom: insets.bottom > 0 ? insets.bottom + 4 : 12, paddingHorizontal: width < 380 ? 12 : 20 }]}>
+    <View style={[styles.container, { backgroundColor: containerBg, paddingBottom: 1, paddingHorizontal: width < 380 ? 12 : 20 }]}>
       {/* Horizontal Files Preview Row */}
       {files.length > 0 && (
         <ScrollView
